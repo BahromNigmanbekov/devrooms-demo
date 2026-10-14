@@ -132,6 +132,8 @@ export function buildDoorFrames() {
 // Game.js adds to the obstacle list only while "park" isn't in the room's
 // unlocked areas, so unlocking it is just "stop adding that one obstacle,"
 // not a map rebuild.
+export const RETURN_GATE={x:0,y:490,w:24,h:120,targetArea:'ai'};
+export const RETURN_GATE_TRIGGER={x:24,y:490,w:50,h:120};
 export const EXIT_GATE = {
   x: WORLD_WIDTH - WALL_THICKNESS,
   y: WORLD_HEIGHT / 2 - DOOR_SIZE / 2,
@@ -159,7 +161,7 @@ export function buildWalls() {
   const walls = [
     rect(0, 0, WORLD_WIDTH, t), // top
     rect(0, WORLD_HEIGHT - t, WORLD_WIDTH, t), // bottom
-    rect(0, 0, t, WORLD_HEIGHT), // left
+    rect(0, 0, t, gy), rect(0, gy + DOOR_SIZE, t, WORLD_HEIGHT - gy - DOOR_SIZE), // return doorway
     // right, with a permanent gap for EXIT_GATE
     rect(WORLD_WIDTH - t, 0, t, gy),
     rect(WORLD_WIDTH - t, gy + DOOR_SIZE, t, WORLD_HEIGHT - (gy + DOOR_SIZE)),
@@ -309,7 +311,7 @@ export function buildFurniture() {
     [WORLD_WIDTH / 2 - 20, 40],
     [WORLD_WIDTH / 2 - 220, WORLD_HEIGHT - 70],
     [WORLD_WIDTH / 2 + 190, WORLD_HEIGHT - 70],
-    [40, WORLD_HEIGHT / 2 - 20],
+    [100, WORLD_HEIGHT / 2 - 100],
   ];
   plants.forEach(([x, y]) => blocking.push({ type: "plant", x, y, w: 34, h: 34 }));
 

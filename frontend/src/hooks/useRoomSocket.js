@@ -8,6 +8,7 @@ import { useRoomStore } from "../store/roomStore.js";
  * state from useRoomStore() directly rather than holding their own copies.
  */
 export function useRoomSocket() {
+  const patchDoors = useRoomStore(s=>s.patchDoors);
   const setRoom = useRoomStore((s) => s.setRoom);
   const setMySocketId = useRoomStore((s) => s.setMySocketId);
   const setError = useRoomStore((s) => s.setError);
@@ -28,10 +29,11 @@ export function useRoomSocket() {
     // Hot path: every other player's movement tick lands here. Patch just
     // that player instead of taking a full room:state broadcast for it.
     const onPlayerState = ({ id, ...patch }) => patchPlayer(id, patch);
-    const onTaskProgress = ({ area, completed, total }) => patchTaskProgress(area, completed, total);
+    const onTaskProgress = ({ area, completed, total, solvedTaskIds }) => patchTaskProgress(area, completed, total, solvedTaskIds);
     const onAreaUnlocked = ({ area }) => unlockArea(area);
     const onDisconnect = () => setMySocketId(null);
 
+    socket.on("room:doors", patchDoors);
     socket.on("connect", onConnect);
     socket.on("room:state", onRoomState);
     socket.on("room:started", onRoomStarted);
@@ -43,6 +45,7 @@ export function useRoomSocket() {
     if (socket.connected) onConnect();
 
     return () => {
+      socket.off("room:doors", patchDoors);
       socket.off("connect", onConnect);
       socket.off("room:state", onRoomState);
       socket.off("room:started", onRoomStarted);
@@ -122,9 +125,15 @@ export function useRoomSocket() {
   // own optimistic UI doesn't confirm, not that the solve is lost (the
   // team-wide room:taskProgress broadcast still lands from other players'
   // solves, or a reconnect's room:state carries the true count).
-  const completeTask = useCallback((roomId, area, taskId) => {
-    getSocket().emit("task:complete", { roomId, area, taskId });
+  const completeTask = useCallback((roomId, area, taskId, answer) => {
+    getSocket().emit("task:complete", { roomId, area, taskId, answer });
   }, []);
 
-  return { createRoom, joinRoom, startGame, leaveRoom, sendPlayerState, completeTask };
+  const requestSeat = useCallback((seatId) => new Promise(resolve => {
+    getSocket().timeout(3000).emit("player:seat", { seatId }, (error, result) => resolve(error ? {ok:false} : result));
+  }), []);
+
+  const submitAttempt = useCallback(data=>new Promise(resolve=>getSocket().timeout(5000).emit('task:attempt',data,(error,result)=>resolve(error?{ok:false}:result))),[]);
+  const requestDoor = useCallback(data=>new Promise(resolve=>getSocket().timeout(3000).emit('door:open',data,(error,result)=>resolve(error?{ok:false}:result))),[]);
+  return { submitAttempt, requestDoor, createRoom, joinRoom, startGame, leaveRoom, sendPlayerState, completeTask, requestSeat };
 }

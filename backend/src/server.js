@@ -25,3 +25,6 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`office-game backend listening on :${PORT}`);
 });
+
+import { roomManager } from "./rooms/roomManager.js";
+setInterval(()=>{for(const update of roomManager.tickDoors())io.to(update.roomId).emit("room:doors",update.doors);},150).unref();

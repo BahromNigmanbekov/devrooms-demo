@@ -129,6 +129,8 @@ export class Renderer {
     const ctx = this.ctx;
     for (const d of decor) {
       switch (d.type) {
+        case "areaLabel":
+          ctx.fillStyle=d.ink||"#b9c6cc";ctx.font="700 17px 'Courier New'";ctx.textAlign="center";ctx.fillText(d.label,d.x,d.y);break;
         case "rug":
           ctx.save();
           ctx.globalAlpha = 0.9;
@@ -258,6 +260,8 @@ export class Renderer {
     for (const f of blocking) {
       this._shadow(f.x, f.y, f.w, f.h);
       switch (f.type) {
+        case 'gameCabinet':case 'gameTable':case 'puzzleConsole':case 'prizeShelf':case 'toolCart':case 'snackCounter':case 'poolTable':
+          this._drawArcadeProp(f,interactables.some(t=>t.id===f.taskId&&t.id===activeInteractableId));break;
         case "desk":
           ctx.fillStyle = this.colors.deskEdge;
           this._roundRect(f.x - 2, f.y - 2, f.w + 4, f.h + 4, 8);
@@ -564,6 +568,7 @@ export class Renderer {
 
     // Computers/terminals — drawn on top of their desk, glow if in range.
     for (const term of interactables) {
+      if(term.type==='arcadeActivity')continue;
       const active = term.id === activeInteractableId;
 
       if (term.type === "arcadeScreen") {
@@ -618,6 +623,38 @@ export class Renderer {
         ctx.restore();
       }
     }
+  }
+
+
+  _drawArcadeProp(f,active) {
+    const c=this.ctx,{x,y,w,h}=f;
+    const box=(dx,dy,bw,bh,color)=>{c.fillStyle=color;this._roundRect(x+dx,y+dy,bw,bh,3);c.fill();};
+    if(['gameCabinet','puzzleConsole','gameTable'].includes(f.type)){
+      box(0,0,w,h,f.type==='gameTable'?'#86674c':'#465366');
+      box(4,4,w-8,f.type==='gameCabinet'?h*.6:h*.65,active?'#59737c':'#2b3c4a');
+      const symbols={memory:'1 2 3',maze:'→ ⚑',lights:'○ ● ○',pairs:'A ? A'};
+      c.fillStyle='#ccd8c6';c.font='bold '+(w>90?13:10)+'px "Courier New"';c.textAlign='center';
+      c.fillText(symbols[f.kind]||'PLAY',x+w/2,y+h*.3);
+      box(8,h*.73,w-16,7,'#9d9c88');
+      for(let i=0;i<3;i++)box(10+i*(w-20)/3,h*.74,5,5,['#b78271','#95a78c','#a29c78'][i]);
+      if(f.type==='gameTable'){box(8,h-3,9,13,'#4a3e34');box(w-17,h-3,9,13,'#4a3e34');}
+    }else if(f.type==='poolTable'){
+      box(0,0,w,h,'#795d43');box(7,7,w-14,h-14,'#4b7567');
+      c.strokeStyle='#a1b0a0';c.lineWidth=1;c.strokeRect(x+12,y+12,w-24,h-24);
+      for(let i=0;i<5;i++){c.fillStyle=['#d7cfb2','#9e695c','#7b9ab6'][i%3];c.beginPath();c.arc(x+30+i*18,y+25+i%2*20,4,0,Math.PI*2);c.fill();}
+      c.strokeStyle='#c3ab79';c.lineWidth=3;c.beginPath();c.moveTo(x+w-25,y+12);c.lineTo(x+20,y+h-12);c.stroke();
+    }else if(f.type==='prizeShelf'){
+      box(0,0,w,h,'#6b5644');box(4,4,w-8,h-8,'#b09471');
+      for(let i=0;i<Math.floor(w/28);i++){box(8+i*28,10,16,20,['#829a85','#aa8390','#879db4','#c3ac75'][i%4]);box(11+i*28,7,10,6,'#d0c7a4');}
+    }else if(f.type==='toolCart'){
+      box(0,0,w,h,'#536570');box(4,4,w-8,15,'#8d989b');box(10,25,w-20,5,'#303e4b');box(10,39,w-20,5,'#303e4b');
+      for(let i=0;i<3;i++)box(9+i*18,6,8,9,['#a8806e','#a99d77','#7196a2'][i]);
+    }else{
+      box(0,0,w,h,'#7b6552');box(0,0,w,16,'#b79b76');
+      for(let i=0;i<3;i++){box(14+i*30,22,16,18,'#d1ccb7');box(17+i*30,24,10,5,'#665246');}
+      box(w-36,22,24,h-28,'#627885');
+    }
+    if(f.taskId){c.fillStyle=active?'#d8e6d6':'#aebdb7';c.font='bold 10px "Courier New"';c.textAlign='center';c.fillText(f.type==='puzzleConsole'?'KIRISH':'E · PLAY',x+w/2,y-9);}
   }
 
   drawPlayer(player) {
@@ -868,6 +905,9 @@ export class Renderer {
     this._drawRobotShell(w, h, color);
     this._drawRobotAntennas(w, h, color);
 
+    ctx.fillStyle='#1c262c';ctx.fillRect(-w*.24,-h*.2,w*.48,h*.48);
+    ctx.fillStyle='#64737c';ctx.fillRect(-w*.19,-h*.15,w*.38,h*.37);
+    ctx.fillStyle='#8aa88f';for(let i=0;i<3;i++)ctx.fillRect(-w*.12,-h*.1+i*h*.09,w*.24,h*.055);
     // Faint centre seam — the only back-of-head detail on the reference sheet.
     ctx.strokeStyle = shadeHexColor(color, -35);
     ctx.lineWidth = Math.max(1, w * 0.02);

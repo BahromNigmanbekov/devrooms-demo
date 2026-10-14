@@ -6,6 +6,7 @@ export const useRoomStore = create((set) => ({
   status: "idle", // idle | connecting | in-room | error
   error: null,
 
+  patchDoors: (doors) => set(s=>s.room?{room:{...s.room,doors}}:s),
   setRoom: (room) => set({ room, status: room ? "in-room" : "idle" }),
   setMySocketId: (mySocketId) => set({ mySocketId }),
   setStatus: (status) => set({ status }),
@@ -30,13 +31,14 @@ export const useRoomStore = create((set) => ({
 
   // room:taskProgress lands as its own event (not a full room:state), so
   // it's patched in the same lightweight way as player position.
-  patchTaskProgress: (area, completed, total) =>
+  patchTaskProgress: (area, completed, total, solvedTaskIds) =>
     set((s) => {
       if (!s.room) return s;
       return {
         room: {
           ...s.room,
           taskProgress: { ...s.room.taskProgress, [area]: { completed, total } },
+          solvedTasks: { ...s.room.solvedTasks, [area]: solvedTaskIds || s.room.solvedTasks?.[area] || [] },
         },
       };
     }),

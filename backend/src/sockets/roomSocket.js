@@ -49,23 +49,35 @@ export function registerRoomSocket(io, socket) {
   socket.on("player:state", (patch) => {
     const room = roomManager.updatePlayerState(socket.id, patch);
     if (!room) return;
-    socket.to(room.id).emit("player:state", { id: socket.id, ...patch });
+    const player = room.players.get(socket.id);
+    socket.to(room.id).emit("player:state", { ...player, id: socket.id });
   });
 
   // A player solved the puzzle at one terminal. The count is team-wide and
   // deduplicated per terminal id server-side, so it's safe for the client
   // to just say "I solved this one" without tracking who solved what.
-  socket.on("task:complete", ({ roomId, area, taskId } = {}, ack) => {
-    const result = roomManager.completeTask(roomId, area, taskId);
-    if (!result) {
-      ack?.({ ok: false });
-      return;
+  socket.on("task:attempt", (data,ack)=>{
+    const result=roomManager.submitAttempt(socket.id,data);
+    if(result.ok){
+      io.to(result.roomId).emit("player:state",result.player);
+      if(result.progress){
+        const p=result.progress;
+        io.to(result.roomId).emit("room:taskProgress",{area:data.area,completed:p.completed,total:p.total,solvedTaskIds:p.solvedTaskIds});
+        if(p.justUnlocked)io.to(result.roomId).emit("room:areaUnlocked",{area:p.nextArea});
+      }
     }
-    io.to(roomId).emit("room:taskProgress", { area, completed: result.completed, total: result.total });
-    if (result.justUnlocked) {
-      io.to(roomId).emit("room:areaUnlocked", { area: result.nextArea });
-    }
-    ack?.({ ok: true });
+    ack?.(result);
+  });
+  socket.on("door:open",(data,ack)=>{
+    const result=roomManager.requestDoor(socket.id,data);
+    if(result.ok)io.to(result.roomId).emit("room:doors",result.doors);
+    ack?.(result);
+  });
+
+  socket.on("player:seat", ({seatId} = {}, ack) => {
+    const result=roomManager.setSeat(socket.id, seatId);
+    if (result.ok) io.to(result.roomId).emit("player:state", result.player);
+    ack?.(result);
   });
 
   socket.on("disconnect", () => {

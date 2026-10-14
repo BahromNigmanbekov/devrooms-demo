@@ -1,20 +1,7 @@
-/**
- * Indoor Amusement Park — a mall arcade, NOT an outdoor park. Built with a
- * completely different structure from the office (one open hall with
- * partial dividers carving out themed bays, instead of enclosed rooms with
- * doorway gaps) and a completely different palette (pastel pink floor,
- * neon-toned walls) so it reads as a different place, not a re-skinned
- * office. This is the game's dark room — see COLORS.darkness usage via
- * areas.js and Game.js's flashlight system.
- */
-
-export const WORLD_WIDTH = 2000;
-export const WORLD_HEIGHT = 1300;
-
-const WALL_THICKNESS = 24;
-const GATE_SIZE = 140;
-
-export const COLORS = {
+import { COLORS as OFFICE_COLORS } from "./OfficeMap.js";
+import { ARCADE_TASKS_BY_ID } from "../../../shared/arcadeActivities.mjs";
+export const WORLD_WIDTH=2600,WORLD_HEIGHT=1700;
+export const COLORS={...OFFICE_COLORS,
   // Dark pink/purple/magenta/violet, per the retro-arcade redesign — a
   // premium, colorful checkerboard, not the earlier near-black flashlight
   // floor. Fully readable under this area's own (now much softer) ambient
@@ -54,272 +41,78 @@ export const COLORS = {
   plantLeafDark: "#0f6e5e",
   plantLeaf: "#4fe0c8",
 };
-
-function rect(x, y, w, h) {
-  return { x, y, w, h };
-}
-
-// Where a player arrives when the office's exit gate sends them here.
-export const SPAWN = { x: 220, y: WORLD_HEIGHT / 2 };
-
-// The gap in the east wall for a future third area — present and visibly
-// locked (a bright neon gate, distinct from the office's clean gold frame
-// and from a rusty outdoor gate) so the world reads as "this continues
-// somewhere," even though nothing is behind it yet.
-export const NEXT_AREA_GATE = {
-  x: WORLD_WIDTH - WALL_THICKNESS,
-  y: WORLD_HEIGHT / 2 - GATE_SIZE / 2,
-  w: WALL_THICKNESS,
-  h: GATE_SIZE,
-  targetArea: "vault", // doesn't exist yet — completeTask() on the backend simply won't unlock past "park" until it does
-};
-
-// The office's exit gate lands players on the LEFT side of this hall (its
-// own left wall has a matching permanent gap, mirroring the office's right
-// wall — see buildWalls()). Walking back into that same gap returns them.
-export const RETURN_GATE = {
-  x: 0,
-  y: WORLD_HEIGHT / 2 - GATE_SIZE / 2,
-  w: WALL_THICKNESS,
-  h: GATE_SIZE,
-  targetArea: "office",
-};
-export const RETURN_GATE_TRIGGER = {
-  x: WALL_THICKNESS,
-  y: WORLD_HEIGHT / 2 - GATE_SIZE / 2,
-  w: 50,
-  h: GATE_SIZE,
-};
-
+export const SPAWN={x:220,y:650};
+export const NEXT_AREA_GATE=null;
+export const RETURN_GATE={x:0,y:580,w:36,h:140,targetArea:"office"};
+export const RETURN_GATE_TRIGGER={x:36,y:580,w:50,h:140};
+export const ROOMS=[
+ {id:"retro",label:"RETRO ZAL",x:420,y:120,w:660,h:400,side:"bottom",at:280,requires:"arcade-lock-retro"},
+ {id:"puzzle",label:"MANTIQ ZALI",x:1500,y:180,w:900,h:480,side:"left",at:240,requires:"arcade-lock-puzzle"},
+ {id:"sports",label:"ROBOT ARENA",x:300,y:1000,w:1000,h:520,side:"top",at:520,requires:"arcade-lock-sports"},
+ {id:"prize",label:"SOVRINLAR ZALI",x:1720,y:1050,w:680,h:430,side:"left",at:170,requires:"arcade-lock-prize"}
+];
+export const INTERIOR_DOORS=ROOMS.map(r=>({id:r.id,x:r.side==="left"?r.x:r.x+r.at,y:r.side==="top"?r.y:r.side==="bottom"?r.y+r.h-24:r.y+r.at,w:r.side==="left"?24:144,h:r.side==="left"?144:24,requires:r.requires,roomBounds:r}));
 export function buildWalls() {
-  const t = WALL_THICKNESS;
-  const gy = WORLD_HEIGHT / 2 - GATE_SIZE / 2;
-  const walls = [
-    rect(0, 0, WORLD_WIDTH, t), // top
-    rect(0, WORLD_HEIGHT - t, WORLD_WIDTH, t), // bottom
-    // left wall, with a permanent gap for RETURN_GATE (back to the office)
-    rect(0, 0, t, gy),
-    rect(0, gy + GATE_SIZE, t, WORLD_HEIGHT - (gy + GATE_SIZE)),
-    // right wall, with a permanent gap for NEXT_AREA_GATE
-    rect(WORLD_WIDTH - t, 0, t, NEXT_AREA_GATE.y),
-    rect(WORLD_WIDTH - t, NEXT_AREA_GATE.y + NEXT_AREA_GATE.h, t, WORLD_HEIGHT - (NEXT_AREA_GATE.y + NEXT_AREA_GATE.h)),
-  ];
-
-  // Partial dividers carving the one big hall into themed bays without
-  // fully enclosing them — this is the "different structure, interesting
-  // paths" the office's grid-of-rooms doesn't have: players weave around
-  // stub walls instead of walking through doorways.
-  const stubW = 26;
-  const stub = (x, y, h) => walls.push(rect(x, y, stubW, h));
-  stub(560, 0, 340); // splits the arcade bay from the claw-machine bay (from the top)
-  stub(1180, WORLD_HEIGHT - 340, 340); // splits the vending bay from the ticket-counter bay (from the bottom)
-  stub(560, WORLD_HEIGHT - 460, 460); // second half of the arcade/claw split, offset for a zigzag path
-  stub(1180, 0, 460); // second half of the vending/ticket split, offset for a zigzag path
-
-  return walls;
+ const walls=[{x:0,y:0,w:2600,h:96,side:"top"},{x:0,y:1664,w:2600,h:36,side:"bottom"},{x:2564,y:0,w:36,h:1700,side:"right"},{x:0,y:0,w:36,h:580,side:"left"},{x:0,y:720,w:36,h:980,side:"left"}];
+ for(const r of ROOMS){
+  for(const side of ["top","bottom","left","right"]){
+   const horizontal=side==="top"||side==="bottom",x=side==="right"?r.x+r.w-24:r.x,y=side==="bottom"?r.y+r.h-24:r.y,len=horizontal?r.w:r.h;
+   const push=(offset,length)=>walls.push({x:x+(horizontal?offset:0),y:y+(horizontal?0:offset),w:horizontal?length:24,h:horizontal?24:length,side,interior:true});
+   if(side===r.side){push(0,r.at);push(r.at+144,len-r.at-144);}else push(0,len);
+  }
+ }return walls;
 }
-
-/** Purely visual — the neon frames drawn around both gates. */
-export function buildDoorFrames() {
-  return [
-    rect(NEXT_AREA_GATE.x, NEXT_AREA_GATE.y, NEXT_AREA_GATE.w, NEXT_AREA_GATE.h),
-    rect(RETURN_GATE.x, RETURN_GATE.y, RETURN_GATE.w, RETURN_GATE.h),
-  ];
-}
-
+export function buildDoorFrames(){return [];}
 export function buildFurniture() {
-  const blocking = [];
-  const interactables = [];
-  const decor = [];
+ const blocking=[],interactables=[],decor=[];
+ const prop=(type,x,y,w,h,extra={})=>blocking.push({type,x,y,w,h,...extra});
+ const activity=(id,x,y,w,h,type="gameCabinet")=>{
+ const task=ARCADE_TASKS_BY_ID[id];prop(type,x,y,w,h,{kind:task.kind,label:task.title.split(":")[0],taskId:id});
+ interactables.push({id,type:"arcadeActivity",x,y:y+h-16,w,h:16,interactRadius:95,requires:task.requires,label:task.title});
+ };
+ const panels=[[930,570],[1380,520],[1050,900],[1600,1310]];
+ ROOMS.forEach((r,i)=>{
+  activity(r.requires,...panels[i],58,46,"puzzleConsole");
+  decor.push({type:"areaLabel",x:r.x+r.w/2,y:r.y+r.h-45,label:r.label});
+  decor.push({type:"rug",x:r.x+55,y:r.y+65,w:r.w-110,h:r.h-130});
+  decor.push({type:"whiteboard",x:r.x+(r.id==="puzzle"||r.id==="prize"?140:230),y:r.y+38,w:150,h:54});
+  prop("plant",r.x+45,r.y+45,34,34);
+  prop("plant",r.x+r.w-80,r.y+r.h-70,34,34);
+ });
+ activity("terminal-park-1",540,240,60,82);activity("terminal-park-2",780,240,60,82);
+ prop("chair",548,355,36,36);prop("prizeShelf",900,180,100,38);
+ prop("shelf",480,170,160,36);prop("sofa",870,370,120,52);prop("table",620,405,90,44);
+ activity("terminal-park-3",1650,330,64,78);activity("terminal-park-4",2030,420,80,64,"gameTable");
+ prop("shelf",1820,240,180,38);prop("toolCart",2200,300,90,60);prop("chair",2050,515,36,36);
+ prop("chair",1670,435,36,36);prop("prizeShelf",2140,540,130,45);
+ activity("terminal-park-5",440,1150,76,88);activity("terminal-park-6",870,1190,150,86,"gameTable");
+ prop("toolCart",1140,1260,86,58);
+ activity("arcade-billiards",620,1300,155,85,"poolTable");prop("bench",1030,1390,130,28);prop("prizeShelf",1030,1070,160,42);
+ prop("sofa",400,1380,140,54);prop("shelf",340,1060,180,36);
+ activity("terminal-park-7",1850,1160,68,84);activity("terminal-park-8",2130,1280,100,72,"gameTable");
+ prop("prizeShelf",2040,1110,230,48);prop("snackCounter",1840,1370,150,52);prop("chair",2160,1380,36,36);
+ prop("toolCart",2280,1380,66,54);
+ // Welcome lounge, snacks, lockers and workshop details occupy different corners.
+ prop("snackCounter",100,250,150,60);prop("watercooler",285,270,42,64);
+ prop("sofa",100,390,140,56);prop("table",130,485,80,45);prop("plant",285,430,36,36);
+ prop("prizeShelf",1140,130,210,45);prop("toolCart",1170,330,90,56);
+ prop("sofa",1160,780,140,56);prop("table",1190,860,80,42);prop("plant",1350,790,34,34);
+ prop("snackCounter",1860,790,180,58);prop("watercooler",2090,790,40,64);
+ prop("sofa",2180,800,145,56);prop("plant",2420,840,36,36);
+ for(const x of [140,1540,2460])for(const y of [100,1550])prop("plant",x,y,36,36);
+ for(const [x,y] of [[90,820],[1400,940],[1480,1460],[2250,1550]]){prop("bench",x,y,110,28);decor.push({type:"clock",x:x+30,y:y-52,w:30,h:30});}
+ decor.push({type:"whiteboard",x:90,y:100,w:210,h:80},{type:"window",x:2400,y:80,w:100,h:60},{type:"window",x:2000,y:1550,w:170,h:50});
 
-  const column = (x, y) => blocking.push({ type: "column", x, y, w: 46, h: 46 });
-  const bench = (x, y, rotated) => blocking.push({ type: "bench", x, y, w: rotated ? 26 : 90, h: rotated ? 90 : 26 });
-  const fence = (x, y, w, h) => blocking.push({ type: "fence", x, y, w, h });
-  const neon = (x, y, w, h, color) => decor.push({ type: "neonSign", x, y, w, h, color });
-  const poster = (x, y) => decor.push({ type: "poster", x, y, w: 46, h: 60 });
-  const arcade = (x, y) => blocking.push({ type: "arcadeMachine", x, y, w: 46, h: 60 });
-  const basketballArcade = (x, y) => blocking.push({ type: "basketballArcade", x, y, w: 60, h: 140 });
-  const airHockey = (x, y) => blocking.push({ type: "airHockey", x, y, w: 120, h: 70 });
-  const clawMachine = (x, y) => blocking.push({ type: "clawMachine", x, y, w: 56, h: 56 });
-  const vendingMachine = (x, y) => blocking.push({ type: "vendingMachine", x, y, w: 44, h: 60 });
-  const ticketMachine = (x, y) => blocking.push({ type: "ticketMachine", x, y, w: 44, h: 50 });
+ prop("jukebox",1230,440,64,84);prop("gumball",325,380,38,50);
+ prop("dartboard",1160,1150,56,56);prop("trophyCase",910,1425,80,36);
+ prop("plant",940,1280,32,32);prop("plant",800,1420,32,32);
+ prop("jukebox",2260,410,58,76);prop("gumball",1570,545,36,48);
+ prop("dartboard",2220,1190,48,48);
+ prop("trophyCase",110,1090,100,44);prop("trophyCase",2250,950,120,40);
+ decor.push({type:"poster",x:980,y:305,w:50,h:70,label:"GAME ON"},
+  {type:"poster",x:1930,y:250,w:50,h:60,label:"THINK"},
+  {type:"poster",x:360,y:1220,w:48,h:70,label:"PLAY"},
+  {type:"poster",x:2320,y:1260,w:48,h:68,label:"WIN"});
 
-  const arcadeTerminal = (x, y, id, label, accent) => {
-    const w = 48;
-    const h = 76;
-    blocking.push({ type: "arcadeCabinetBody", x, y, w, h, accent });
-    interactables.push({
-      type: "arcadeScreen",
-      id,
-      x: x + w * 0.12,
-      y: y + h * 0.2,
-      w: w * 0.76,
-      h: h * 0.32,
-      interactRadius: 84,
-      label: label || "Arcade terminali",
-    });
-  };
-
-  const vNeonStrip = (x, y, h, color) => decor.push({ type: "neonStripV", x, y, w: 6, h, color });
-
-  // ---- Left/right outer walls: neon only on the side facing INTO the ----
-  // room (never on the side facing the world boundary), split around each
-  // wall's gate gap.
-  const leftGateY = WORLD_HEIGHT / 2 - GATE_SIZE / 2;
-  vNeonStrip(WALL_THICKNESS + 2, 24, leftGateY - 40, "neonCyan");
-  vNeonStrip(WALL_THICKNESS + 2, leftGateY + GATE_SIZE + 16, WORLD_HEIGHT - (leftGateY + GATE_SIZE) - 40, "neonCyan");
-
-  vNeonStrip(WORLD_WIDTH - WALL_THICKNESS - 8, 24, NEXT_AREA_GATE.y - 40, "neonPink");
-  vNeonStrip(
-    WORLD_WIDTH - WALL_THICKNESS - 8,
-    NEXT_AREA_GATE.y + NEXT_AREA_GATE.h + 16,
-    WORLD_HEIGHT - (NEXT_AREA_GATE.y + NEXT_AREA_GATE.h) - 40,
-    "neonPink"
-  );
-
-  // ---- Interior divider (stub) walls: these have open room on BOTH -------
-  // sides, so unlike the outer boundary they get a neon strip on each face.
-  [
-    [560, 0, 340],
-    [1180, WORLD_HEIGHT - 340, 340],
-    [560, WORLD_HEIGHT - 460, 460],
-    [1180, 0, 460],
-  ].forEach(([sx, sy, sh]) => {
-    vNeonStrip(sx - 8, sy + 16, sh - 32, "neonYellow");
-    vNeonStrip(sx + 26 + 2, sy + 16, sh - 32, "neonYellow");
-  });
-
-  // ---- Central landmark: ticket redemption counter ------------------------
-  const cx = WORLD_WIDTH / 2;
-  const cy = WORLD_HEIGHT / 2;
-  blocking.push({ type: "prizeCounter", x: cx - 90, y: cy - 40, w: 180, h: 80 });
-  neon(cx - 70, cy - 110, 140, 30, "neonYellow");
-
-  // ---- Bay 1 (top-left): Arcade zone --------------------------------------
-  [
-    [140, 90], [210, 90], [280, 90], [350, 90],
-    [140, 250], [210, 250], [280, 250], [350, 250],
-  ].forEach(([x, y]) => arcade(x, y));
-  basketballArcade(430, 90);
-  neon(140, 40, 260, 26, "neonCyan");
-
-  // ---- Bay 2 (top-right): Claw machines + air hockey ----------------------
-  [
-    [700, 90], [770, 90], [840, 90], [910, 90],
-  ].forEach(([x, y]) => clawMachine(x, y));
-  airHockey(700, 230);
-  airHockey(860, 230);
-  neon(700, 40, 260, 26, "neonPink");
-
-  // ---- Bay 3 (bottom-left): Vending + tickets ------------------------------
-  [
-    [140, WORLD_HEIGHT - 200], [210, WORLD_HEIGHT - 200], [280, WORLD_HEIGHT - 200],
-  ].forEach(([x, y]) => vendingMachine(x, y));
-  [
-    [140, WORLD_HEIGHT - 300], [210, WORLD_HEIGHT - 300],
-  ].forEach(([x, y]) => ticketMachine(x, y));
-  neon(140, WORLD_HEIGHT - 340, 200, 26, "neonYellow");
-
-  // ---- Bay 4 (bottom-right): Toy/claw machines + benches ------------------
-  [
-    [1260, WORLD_HEIGHT - 210], [1330, WORLD_HEIGHT - 210], [1400, WORLD_HEIGHT - 210],
-  ].forEach(([x, y]) => clawMachine(x, y));
-  bench(1260, WORLD_HEIGHT - 320);
-  bench(1400, WORLD_HEIGHT - 320);
-  neon(1260, WORLD_HEIGHT - 360, 220, 26, "neonCyan");
-
-  // ---- Terminal Row — 12 arcade cabinets are the actual task terminals ---
-  // now (not desks), matching the room's own theme: walk up to an arcade
-  // machine, not an office PC, to get a task. Left and right clusters are
-  // deliberately DIFFERENT shapes (2x3 vs 3x2) with generous aisles, so the
-  // two groups of six read as two distinct arcade banks flanking the
-  // central plaza rather than one clump mirrored twice.
-  //
-  // The left bank's rows are also kept clear of y=600-700 on purpose: the
-  // Park's SPAWN point sits at (220, 650), right where a player walks in
-  // from the office gate, and a cabinet row sitting on that exact line
-  // would block their very first step forward almost immediately (reads
-  // as the character being stuck/frozen right after arriving).
-  neon(250, 420, 280, 24, "neonCyan");
-  neon(1400, 450, 360, 24, "neonPink");
-  const accents = ["neonCyan", "neonPink", "neonYellow"];
-  let stationNum = 1;
-
-  // Left bank: 2 columns x 3 rows.
-  const leftCols = [270, 460];
-  const leftRows = [460, 720, 860];
-  for (const y of leftRows) {
-    for (const x of leftCols) {
-      arcadeTerminal(x, y, `terminal-park-${stationNum}`, `Arcade #${stationNum}`, accents[stationNum % accents.length]);
-      stationNum++;
-    }
-  }
-
-  // Right bank: 3 columns x 2 rows — a different footprint from the left
-  // bank so the room doesn't read as two copies of the same block.
-  const rightCols = [1420, 1560, 1700];
-  const rightRows = [560, 720];
-  for (const y of rightRows) {
-    for (const x of rightCols) {
-      arcadeTerminal(x, y, `terminal-park-${stationNum}`, `Arcade #${stationNum}`, accents[stationNum % accents.length]);
-      stationNum++;
-    }
-  }
-
-  // ---- Decorative plants — softening the aisles around both terminal ----
-  // banks and the central plaza.
-  [
-    [190, 570], [190, 680], [620, 590], [1350, 640], [1780, 480],
-  ].forEach(([x, y]) => blocking.push({ type: "plant", x, y, w: 32, h: 32 }));
-
-  // ---- Columns — the mall's big colorful pillars, scattered through the --
-  // open floor between bays so the wide central hall isn't fully empty.
-  [
-    [560, 560], [560, 780], [900, 400], [900, 900],
-    [1250, 560], [1250, 780], [1780, 640],
-  ].forEach(([x, y]) => column(x, y));
-
-  // ---- Decorative fences — light rails marking the edge of the central ---
-  // plaza around the prize counter, purely visual/blocking, not full walls.
-  fence(cx - 160, cy - 130, 320, 10);
-  fence(cx - 160, cy + 120, 320, 10);
-  fence(cx - 170, cy - 130, 10, 260);
-  fence(cx + 160, cy - 130, 10, 260);
-
-  // ---- Wall decoration — dense, continuous line of neon signs and -------
-  // posters running the full length of the top and bottom walls (matching
-  // the reference layout), not a handful of scattered pieces. Skips the
-  // x-bands where a stub wall descends from the top/bottom edge so nothing
-  // visually clips through a column.
-  const stubBands = [
-    [520, 640],
-    [1140, 1260],
-  ];
-  const clearOfStubs = (x) => !stubBands.some(([lo, hi]) => x > lo && x < hi);
-
-  const topSpots = [];
-  for (let x = 70; x <= WORLD_WIDTH - 140; x += 155) {
-    if (clearOfStubs(x)) topSpots.push(x);
-  }
-  const neonColors = ["neonCyan", "neonPink", "neonYellow"];
-  topSpots.forEach((x, i) => {
-    if (i % 2 === 0) {
-      neon(x, 36, 128, 26, neonColors[i % neonColors.length]);
-    } else {
-      poster(x, 30);
-    }
-  });
-  const bottomSpots = [];
-  for (let x = 70; x <= WORLD_WIDTH - 140; x += 155) {
-    if (clearOfStubs(x)) bottomSpots.push(x);
-  }
-  bottomSpots.forEach((x, i) => {
-    if (i % 2 === 0) {
-      poster(x, WORLD_HEIGHT - 158);
-    } else {
-      neon(x, WORLD_HEIGHT - 100, 128, 26, neonColors[(i + 1) % neonColors.length]);
-    }
-  });
-
-  return { blocking, interactables, decor };
+ return {blocking,interactables,decor};
 }

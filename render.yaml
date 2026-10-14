@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: office-game-backend
+    runtime: node
+    # Paid compute: does not sleep when idle. Review cost before deploying.
+    plan: 0.5c-512mb
+    numInstances: 1
+    # Keep repository root: backend imports frontend/src and shared modules.
+    buildCommand: npm ci --prefix backend
+    startCommand: npm start --prefix backend
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: CLIENT_ORIGIN
+        sync: false

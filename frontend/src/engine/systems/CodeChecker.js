@@ -8,7 +8,15 @@
  *   injection, just a small property-equivalence check, which is plenty
  *   for a "border is red, background is black" style puzzle.
  */
+import { validateArcadeAnswer } from "../../../../shared/arcadeActivities.mjs";
+import { validateAIAnswer } from "../../../../shared/aiActivities.mjs";
+
 export function runTask(task, userCode) {
+  if(task.type==='arcade'){const allPass=validateArcadeAnswer(task,userCode);return {allPass,results:[],explanation:task.explanation};}
+  if (["quiz", "wires"].includes(task.type)) {
+    const allPass = validateAIAnswer(task, userCode);
+    return { allPass, results: [], explanation: allPass ? task.explanation : "" };
+  }
   return task.type === "css" ? runCssTask(task, userCode) : runJsTask(task, userCode);
 }
 

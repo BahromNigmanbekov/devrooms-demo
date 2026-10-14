@@ -13,24 +13,22 @@ export class InputManager {
       // browser handle the keystroke normally — don't hijack WASD/E as
       // movement, and don't preventDefault (that would break typing).
       const tag = (e.target && e.target.tagName) || "";
+      if (e.target?.closest?.("#modal-backdrop.open")) return;
       if (tag === "TEXTAREA" || tag === "INPUT" || e.target?.isContentEditable) return;
 
       const code = e.code;
       if (!this.keys.has(code)) this.justPressed.add(code);
       this.keys.add(code);
-      if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyE"].includes(code)) {
+      if (["KeyW", "KeyA", "KeyS", "KeyD", "KeyE", "Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(code)) {
         e.preventDefault();
       }
     };
-    this._onKeyUp = (e) => {
-      const tag = (e.target && e.target.tagName) || "";
-      if (tag === "TEXTAREA" || tag === "INPUT" || e.target?.isContentEditable) return;
-      this.keys.delete(e.code);
-    };
+    this._onKeyUp = (e) => { this.keys.delete(e.code); };
+    this._onBlur = () => { this.keys.clear(); this.justPressed.clear(); };
 
     window.addEventListener("keydown", this._onKeyDown);
     window.addEventListener("keyup", this._onKeyUp);
-    window.addEventListener("blur", () => this.keys.clear());
+    window.addEventListener("blur", this._onBlur);
   }
 
   isDown(code) {
@@ -65,5 +63,8 @@ export class InputManager {
   destroy() {
     window.removeEventListener("keydown", this._onKeyDown);
     window.removeEventListener("keyup", this._onKeyUp);
+    window.removeEventListener("blur", this._onBlur);
+    this.keys.clear();
+    this.justPressed.clear();
   }
 }

@@ -1,9 +1,14 @@
+import { areaDoors, doorAllowed, doorDistance, drawDoor, doorObstacle, linkId } from "../systems/DoorSystem.js";
+import { buildSeats, findAvailableSeat } from "../systems/SeatSystem.js";
+import { hasLineOfSight } from "../systems/InteractionSystem.js";
 import { InputManager } from "./InputManager.js";
 import { Camera } from "./Camera.js";
 import { Player } from "../entities/Player.js";
 import { CollisionSystem } from "../systems/CollisionSystem.js";
 import { InteractionSystem } from "../systems/InteractionSystem.js";
 import { castLightCone } from "../systems/LightingSystem.js";
+import { ArcadeRoomRenderer } from "../render/ArcadeRoomRenderer.js";
+import { AIRoomRenderer } from "../render/AIRoomRenderer.js";
 import { Renderer } from "../render/Renderer.js";
 import { Modal } from "../../components/ui/ModalController.js";
 import { AREAS } from "../../maps/areas.js";
@@ -29,6 +34,9 @@ export class Game {
     this.multiplayer = {
       getMySocketId: multiplayer.getMySocketId || (() => null),
       getPlayers: multiplayer.getPlayers || (() => []),
+      getSolvedTasks: multiplayer.getSolvedTasks || (() => ({})),
+      onSeatRequest: multiplayer.onSeatRequest || null,
+      onAttempt:multiplayer.onAttempt,onDoorRequest:multiplayer.onDoorRequest,getDoors:multiplayer.getDoors||(()=>({})),
       onLocalMove: multiplayer.onLocalMove || (() => {}),
       // Fired once per actual area transition (not per movement tick) so
       // the local client can mirror its own room/area into shared state —
@@ -36,13 +44,17 @@ export class Game {
       // sender (see roomSocket.js), so without this the local player's own
       // entry in room.players never learns it changed rooms.
       onAreaChange: multiplayer.onAreaChange || (() => {}),
-      getUnlockedAreas: multiplayer.getUnlockedAreas || (() => ["office"]),
+      getUnlockedAreas: multiplayer.getUnlockedAreas || (() => ["ai"]),
       getTaskProgress: multiplayer.getTaskProgress || (() => ({})),
       onTaskComplete: multiplayer.onTaskComplete || (() => {}),
     };
 
     this.input = new InputManager();
     this.renderer = new Renderer(this.ctx);
+    this.aiRenderer = new AIRoomRenderer(this.ctx);
+    this.arcadeRenderer = new ArcadeRoomRenderer(this.ctx);
+    this._running = false;
+    this._destroyed = false;
 
     this.player = new Player(0, 0);
     this.player.isLocal = true;
@@ -65,20 +77,22 @@ export class Game {
     this._currentTaskArea = null;
     this.isGhost = false;
     this.modal = new Modal({
-      onRun: (code) => {
-        if (!this._currentTask) return;
-        const result = runTask(this._currentTask, code);
-        this.modal.showResult(result);
-        if (result.allPass) {
-          this.multiplayer.onTaskComplete(this._currentTaskArea, this._activeInteractable.id);
-          // Solving a terminal recharges the flashlight — the two systems
-          // are deliberately coupled so "help with tasks" and "keep the
-          // light on" are the same cooperative loop, not two separate ones.
-          if (AREAS[this._currentTaskArea]?.flashlightCapable) {
-            this.flashlightEnergy = Math.min(100, this.flashlightEnergy + 25);
-            this._spawnEnergyGainText();
-          }
-        }
+      onRun: async (code) => {
+        if(!this._currentTask||this._attemptPending||this.isGhost)return;
+        const task=this._currentTask,area=this._currentTaskArea,taskId=this._currentTaskId;
+        const result=runTask(task,code);
+        this._attemptPending=true;this.modal.setBusy(true);
+        try {
+          const key=JSON.stringify([area,taskId,code]);
+          if(this._submissionReceipt?.key!==key)this._submissionReceipt={key,id:crypto.randomUUID()};
+          const response=await this.multiplayer.onAttempt?.({area,taskId,answer:code,passed:result.allPass,attemptId:this._submissionReceipt.id});
+          if(response?.ok)this._submissionReceipt=null;
+          if(this._destroyed)return;
+          if(!response?.ok){this.modal.resultPanel.textContent="Aloqa tasdiqlanmadi. Quvvat panelini tekshiring va qayta urinib ko'ring.";this.modal.resultPanel.classList.remove("hidden");return;}
+          this.player.energy=response.player.energy;this.isGhost=response.player.eliminated;
+          if(this.modal.isOpen&&this._currentTask===task)this.modal.showResult({...result,allPass:response.allPass,energy:response.player.energy,energyDelta:response.energyDelta});
+          if(this.isGhost){this.modal.setBusy(false);this.modal.close();}
+        } finally {this._attemptPending=false;if(!this._destroyed)this.modal.setBusy(false);}
       },
       onClose: () => {
         this.modalOpen = false;
@@ -95,7 +109,7 @@ export class Game {
     this._dustParticles = [];
     this.energyGainLayerEl = document.getElementById("energy-gain-layer");
 
-    this._loadArea("office");
+    this._loadArea("ai");
 
     this._resize = this._resize.bind(this);
     window.addEventListener("resize", this._resize);
@@ -112,7 +126,7 @@ export class Game {
     this._resize();
     // Re-check once more shortly after construction in case the very first
     // layout pass reported a stale viewport size.
-    requestAnimationFrame(() => this._resize());
+    this._resizeFrame = requestAnimationFrame(() => { if (!this._destroyed) this._resize(); });
 
     this._lastTime = performance.now();
     this._loop = this._loop.bind(this);
@@ -125,6 +139,7 @@ export class Game {
    * area's spawn point — areas are separate spaces, not one shared world.
    */
   _loadArea(areaKey) {
+    const fromArea=this.currentArea;
     const area = AREAS[areaKey];
     this.area = area;
     this.currentArea = areaKey;
@@ -137,14 +152,34 @@ export class Game {
     this._decorList = decor;
     this._doorFrames = area.buildDoorFrames();
     this._baseObstacles = [...walls, ...blocking];
+    this._seats = buildSeats(blocking, areaKey);
+    this.player.seated = false; this.player.seatId = null;
+    this._nearestSeat = null; this._seatPending = false;
+    this._interiorSignature = null;
     this.interactables = interactables;
 
     this.camera = new Camera(area.WORLD_WIDTH, area.WORLD_HEIGHT);
     this.renderer.setPalette(area.COLORS);
     this.interaction = new InteractionSystem(this.interactables);
 
+    this._doors=areaDoors(area,areaKey); this._doorAnimation={};
     this.player.x = area.spawn.x;
     this.player.y = area.spawn.y;
+    if (areaKey === "ai" && !fromArea) {
+      const peers = this.multiplayer.getPlayers();
+      const index = Math.max(0, peers.findIndex(p => p.id === this.multiplayer.getMySocketId()));
+      const columns = Math.min(6, Math.max(1, peers.length));
+      this.player.x += (index % 6 - (columns - 1) / 2) * 84;
+      this.player.y += Math.floor(index / 6) * 60 - Math.floor(Math.max(0, peers.length - 1) / 6) * 30;
+    }
+    const arrivals={office:{ai:{x:140,y:550},park:{x:1640,y:550}},ai:{office:{x:2690,y:900}},park:{office:{x:220,y:650}}};
+    Object.assign(this.player,arrivals[areaKey]?.[fromArea]||{});
+    this.camera.x = this.player.x;
+    this.camera.y = this.player.y;
+    this._activeInteractable = null;
+    const guide = document.getElementById("ai-room-guide");
+    if (guide) guide.classList.toggle("hidden", areaKey !== "ai");
+    document.getElementById("arcade-room-guide")?.classList.toggle("hidden",areaKey!=="park");
     this.flashlightOn = true;
     this._flashlightIntensity = area.flashlightCapable ? 0 : 1; // fades in on entry rather than snapping on
     if (area.flashlightCapable) {
@@ -169,17 +204,12 @@ export class Game {
    * without needing the area to reload.
    */
   _syncGate() {
-    const gate = this.area.exitGate;
-    if (!gate) return;
-    const unlocked = this.multiplayer.getUnlockedAreas().includes(gate.targetArea);
-    const locked = !unlocked;
-    if (locked === this._gateLocked) return;
-    const wasLocked = this._gateLocked;
-    this._gateLocked = locked;
-    this.collision = new CollisionSystem(locked ? [...this._baseObstacles, gate] : this._baseObstacles);
-    if (wasLocked === true && locked === false) {
-      this._showUnlockToast();
-    }
+    const locked=!this.multiplayer.getUnlockedAreas().includes(this.area.exitGate?.targetArea);
+    const wasLocked=this._gateLocked;this._gateLocked=locked;
+    this._lockedInteriorDoors=this._doors.filter(d=>(this._doorAnimation[d.id]||0)<1).map(doorObstacle);
+    const signature=this._lockedInteriorDoors.map(d=>d.id).join(",");
+    if(signature!==this._interiorSignature){this._interiorSignature=signature;this.collision=new CollisionSystem([...this._baseObstacles,...this._lockedInteriorDoors]);}
+    if(wasLocked===true&&!locked)this._showUnlockToast();
   }
 
   _showUnlockToast() {
@@ -191,7 +221,7 @@ export class Game {
     clearTimeout(this._unlockToastTimeout);
     this._unlockToastTimeout = setTimeout(() => {
       this.unlockToastEl.classList.remove("visible");
-      setTimeout(() => this.unlockToastEl.classList.add("hidden"), 400);
+      this._unlockHideTimeout = setTimeout(() => this.unlockToastEl.classList.add("hidden"), 400);
     }, 3200);
   }
 
@@ -203,19 +233,16 @@ export class Game {
       return;
     }
     this.progressEl.classList.remove("hidden");
-    this.progressEl.textContent = `Jamoa: ${progress.completed}/${progress.total} — ${this.area.label}`;
+    this.progressEl.textContent = `Jamoa: ${progress.completed}/${progress.total} — ${this.area.label}${this.currentArea==="park"&&progress.completed===progress.total?" · Barcha o‘yinlar bajarildi!":""}`;
   }
 
   _updateEnergyHud() {
-    if (!this.energyWrapEl || !this.energyBarEl) return;
-    if (!this.area.flashlightCapable) {
-      this.energyWrapEl.classList.add("hidden");
-      return;
-    }
-    this.energyWrapEl.classList.remove("hidden");
-    this.energyBarEl.style.width = `${this.flashlightEnergy}%`;
-    this.energyWrapEl.classList.toggle("energy-mid", this.flashlightEnergy <= 60 && this.flashlightEnergy > 25);
-    this.energyWrapEl.classList.toggle("energy-low", this.flashlightEnergy <= 25);
+    const value=this.player.energy??100;
+    const text=document.getElementById("power-value"),fill=document.getElementById("power-fill");
+    if(text)text.textContent=value+"%";
+    if(fill){fill.style.width=value+"%";fill.style.background=value<=25?"#b96657":value<=60?"#b39c64":"#759889";}
+    document.getElementById("game-over")?.classList.toggle("hidden",!this.isGhost);
+    this.energyWrapEl?.classList.add("hidden");
   }
 
   /** A "+25" that rises and fades over the battery HUD — visual feedback for a correct answer recharging the flashlight. */
@@ -247,10 +274,28 @@ export class Game {
   }
 
   start() {
-    requestAnimationFrame(this._loop);
+    if (this._running || this._destroyed) return;
+    this._running = true;
+    this._lastTime = performance.now();
+    this._raf = requestAnimationFrame(this._loop);
+  }
+
+  destroy() {
+    this._running = false;
+    this._destroyed = true;
+    cancelAnimationFrame(this._raf);
+    cancelAnimationFrame(this._resizeFrame);
+    clearTimeout(this._unlockToastTimeout);
+    clearTimeout(this._unlockHideTimeout);
+    window.removeEventListener("resize", this._resize);
+    window.removeEventListener("orientationchange", this._resize);
+    this._resizeObserver?.disconnect();
+    this.input.destroy();
+    this.modal.destroy();
   }
 
   _loop(now) {
+    if (!this._running) return;
     const dt = Math.min((now - this._lastTime) / 1000, 1 / 30);
     this._lastTime = now;
 
@@ -269,14 +314,16 @@ export class Game {
     }
 
     this.input.endFrame();
-    requestAnimationFrame(this._loop);
+    this._raf = requestAnimationFrame(this._loop);
   }
 
   _update(dt, now) {
+    for(const d of this._doors) {const target=this.multiplayer.getDoors()[d.id]?.open?1:0;const p=this._doorAnimation[d.id]||0;this._doorAnimation[d.id]=Math.max(0,Math.min(1,p+Math.sign(target-p)*Math.min(Math.abs(target-p),dt/0.6)));}
     this._syncGate();
 
     const move = this.input.getMoveVector();
-    this.player.update(dt, move, this.collision, this.modalOpen);
+    if (!this.modalOpen && this.player.seated && (this.input.wasJustPressed("Space") || (this.input.wasJustPressed("KeyE")&&!this._activeInteractable))) this._requestSeat(null);
+    this.player.update(dt, move, this.collision, this.modalOpen || this.player.seated || this._seatPending || this.isGhost);
     this.camera.follow(this.player.x, this.player.y, dt);
     this.camera.updateZoom(this.viewW, this.viewH);
     this.camera.clamp(this.viewW, this.viewH);
@@ -287,6 +334,8 @@ export class Game {
     if (me) {
       this.player.color = me.color;
       this.player.nickname = me.nickname;
+      this.player.energy=me.energy??100;this.isGhost=!!me.eliminated;
+      if(this.isGhost&&this.modalOpen)this.modal.close();
     }
 
     if (now - this._lastBroadcast > 60) {
@@ -307,7 +356,7 @@ export class Game {
     // now — the park's forward gate is permanently locked (no third area
     // to walk into yet).
     const trigger = this.area.exitTrigger;
-    if (!this.modalOpen && trigger && !this._gateLocked && aabbOverlap(this.player, 16, trigger)) {
+    if (!this.isGhost && !this.player.seated && !this.modalOpen && trigger && this._doorAnimation[linkId(this.currentArea,this.area.exitGate.targetArea)]>=1 && !this._gateLocked && aabbOverlap(this.player, 16, trigger)) {
       this._loadArea(this.area.exitGate.targetArea);
       return;
     }
@@ -315,13 +364,23 @@ export class Game {
     // The return gate (e.g. Park -> Office) is never progress-gated —
     // going backward is always available.
     const returnTrigger = this.area.returnTrigger;
-    if (!this.modalOpen && returnTrigger && aabbOverlap(this.player, 16, returnTrigger)) {
+    if (!this.isGhost && !this.player.seated && !this.modalOpen && returnTrigger && this._doorAnimation[linkId(this.currentArea,this.area.returnGate.targetArea)]>=1 && aabbOverlap(this.player, 16, returnTrigger)) {
       this._loadArea(this.area.returnGate.targetArea);
       return;
     }
 
     // Interaction prompt.
-    this._activeInteractable = this.isGhost ? null : this.interaction.findNearest(this.player.x, this.player.y);
+    const solved=this.multiplayer.getSolvedTasks()[this.currentArea] || [];
+    const walls=[...this._wallList, ...this._lockedInteriorDoors];
+    this._activeInteractable = this.isGhost ? null : this.interaction.findNearest(this.player.x, this.player.y,
+      item => (!item.requires || solved.includes(item.requires)) && hasLineOfSight(this.player, item, walls));
+    this._nearestSeat = this.player.seated ? null : findAvailableSeat(this._seats, this.player.x, this.player.y, this.multiplayer.getPlayers(), this.multiplayer.getMySocketId());
+    if (this._nearestSeat && !hasLineOfSight(this.player, { x:this._nearestSeat.x-1,y:this._nearestSeat.y-1,w:2,h:2 },walls)) this._nearestSeat=null;
+    this._nearestDoor=this._doors.filter(d=>doorDistance(this.player,d)<105 && this._doorAnimation[d.id]<1).sort((a,b)=>doorDistance(this.player,a)-doorDistance(this.player,b))[0];
+    const doorButton=document.getElementById('door-button');
+    doorButton?.classList.toggle('hidden',!this._nearestDoor||this.modalOpen||this.isGhost);
+    if(doorButton&&this._nearestDoor)doorButton.textContent=doorAllowed(this._nearestDoor,solved,this.multiplayer.getUnlockedAreas())?'Eshikni ochish · E':this._nearestDoor.requires?(this.currentArea==='park'?'Kirish boshqotirmasini bajaring':'Avval simlarni ulang'):'Avval vazifalarni bajaring';
+    if(!this.modalOpen&&!this.isGhost&&!this._activeInteractable&&this._nearestDoor&&this.input.wasJustPressed('KeyE'))this._requestDoor();
     this._updatePrompt();
 
     // Flashlight energy — drains automatically while inside a
@@ -350,10 +409,12 @@ export class Game {
     this._flashlightIntensity += (flashlightTarget - this._flashlightIntensity) * Math.min(1, dt * 7);
 
     // E opens the modal for whichever terminal is currently in range.
-    if (!this.modalOpen && this._activeInteractable && this.input.wasJustPressed("KeyE")) {
+    if (!this.modalOpen && !this.player.seated && !this._seatPending && this._nearestSeat && (this.input.wasJustPressed("Space") || (!this._activeInteractable && !this._nearestDoor && this.input.wasJustPressed("KeyE")))) this._requestSeat(this._nearestSeat);
+    if (!this.isGhost && !this.modalOpen && !this._seatPending && this._activeInteractable && this.input.wasJustPressed("KeyE")) {
       this.modalOpen = true;
       this._currentTaskArea = this.currentArea;
-      this._currentTask = this.area.getTask(this._activeInteractable.id);
+      this._currentTaskId = this._activeInteractable.id;
+      this._currentTask = this.area.getTask(this._currentTaskId);
       this.modal.open(this._activeInteractable.label, this._currentTask);
     }
 
@@ -401,8 +462,35 @@ export class Game {
     };
   }
 
+  _requestDoor() {
+    if(!this._nearestDoor||this.isGhost||this.player.seated||!this.multiplayer.onDoorRequest)return;
+    this.multiplayer.onDoorRequest({area:this.currentArea,id:this._nearestDoor.id});
+  }
+  _drawDoor(d) {drawDoor(this.ctx,d,this._doorAnimation[d.id]||0,doorAllowed(d,this.multiplayer.getSolvedTasks()[this.currentArea]||[],this.multiplayer.getUnlockedAreas()));}
+  _drawDoors() {for(const d of this._doors)this._drawDoor(d);}
+  _requestSeat(seat) {
+    if(this._seatPending || !this.multiplayer.onSeatRequest) return;
+    this._seatPending=true;
+    const area=this.currentArea;
+    this.multiplayer.onSeatRequest(seat?.id || null).then(result=>{
+      if(this._destroyed || this.currentArea!==area) return;
+      this._seatPending=false;
+      if(!result?.ok) return;
+      Object.assign(this.player, {
+        x:result.player.x,y:result.player.y,seated:result.player.seated,
+        seatId:result.player.seatId,moving:false,facing:{x:0,y:1}
+      });
+    }).catch(()=>{this._seatPending=false;});
+  }
+  _drawGamePlayer(player) {
+    this.renderer.drawPlayer({...player, y:player.y-(player.seated?10:0),moving:player.seated?false:player.moving});
+  }
   _updatePrompt() {
-    if (this._activeInteractable && !this.modalOpen) {
+    const label=this.promptEl.querySelector(".label");
+    const key=this.promptEl.querySelector(".key");
+    key.textContent=this._activeInteractable || this.player.seated ? "E" : "Space";
+    label.textContent=this.player.seated && !this._activeInteractable ? "Turish · E / Space" : this._activeInteractable ? this._activeInteractable.label + (this.player.seated ? " · Space: turish" : "") + (this._nearestSeat ? " · Space: o‘tirish" : "") : this._nearestSeat?.label || "";
+    if ((this._activeInteractable || this._nearestSeat || this.player.seated) && !this.modalOpen && !this.isGhost) {
       this.promptEl.classList.remove("hidden");
       requestAnimationFrame(() => this.promptEl.classList.add("visible"));
     } else {
@@ -418,6 +506,34 @@ export class Game {
     ctx.save();
     this.camera.apply(ctx, this.viewW, this.viewH);
 
+    if (this.currentArea === "ai") {
+      const id = this.multiplayer.getMySocketId();
+      const players = this.multiplayer.getPlayers()
+        .filter(p => p.id !== id && (p.area || "ai") === "ai")
+        .map(p => ({ ...p, radius: 16, facing: p.facing || { x: 0, y: 1 }, isLocal: false }));
+      this.aiRenderer.render(this.area, this._blockingList, [...players, this.player],
+        this._activeInteractable?.id, this.multiplayer.getSolvedTasks().ai || [],
+        this._gateLocked !== false,
+        this.multiplayer.getTaskProgress().ai || { completed: 0, total: 14 },
+        p => this._drawGamePlayer(p), this._wallList.filter(w=>w.interior), this._doors, this._lockedInteriorDoors, d=>this._drawDoor(d));
+      ctx.restore();
+      this.renderer.drawAmbientLighting(this.player, this.viewW, this.viewH, this.camera, { darkness: this.area.darkness });
+      return;
+    }
+
+    if (this.currentArea === "park") {
+      const id = this.multiplayer.getMySocketId();
+      const players = this.multiplayer.getPlayers()
+        .filter(p => p.id !== id && p.area === "park")
+        .map(p => ({ ...p, radius: 16, facing: p.facing || { x: 0, y: 1 }, isLocal: false }));
+      this.arcadeRenderer.renderArcade(this.area, this._blockingList, [...players, this.player],
+        this._activeInteractable?.id, this.multiplayer.getSolvedTasks().park || [],
+        p => this._drawGamePlayer(p), this._wallList, this._doors, d => this._drawDoor(d), this._decorList);
+      ctx.restore();
+      this.renderer.drawAmbientLighting(this.player, this.viewW, this.viewH, this.camera, { darkness: this.area.darkness });
+      return;
+    }
+
     this.renderer.drawFloor(this.area.WORLD_WIDTH, this.area.WORLD_HEIGHT, this.area.flashlightCapable);
     this.renderer.drawDecor(this._decorList);
     this.renderer.drawWalls(this._wallList);
@@ -428,21 +544,14 @@ export class Game {
       this._activeInteractable ? this._activeInteractable.id : null
     );
 
-    if (this.area.exitGate) {
-      const progress = this.multiplayer.getTaskProgress()[this.currentArea] || { completed: 0, total: 12 };
-      this.renderer.drawGateStatus(this.area.exitGate, this._gateLocked !== false, progress.completed, progress.total);
-    }
-    if (this.area.returnGate) {
-      this.renderer.drawGateStatus(this.area.returnGate, false, 0, 0);
-    }
-
+    this._drawDoors();
     const flashlightRange = FLASHLIGHT_RANGE_TILES * TILE_SIZE;
     const otherBeams = [];
 
     const mySocketId = this.multiplayer.getMySocketId();
     for (const p of this.multiplayer.getPlayers()) {
       if (p.id === mySocketId) continue;
-      if ((p.area || "office") !== this.currentArea) continue;
+      if ((p.area || "ai") !== this.currentArea) continue;
       if (this.area.flashlightCapable && p.flashlightOn) {
         const facing = p.facing || { x: 0, y: 1 };
         const angle = Math.atan2(facing.y, facing.x);
@@ -459,15 +568,16 @@ export class Game {
         color: p.color,
         nickname: p.nickname,
         isLocal: false,
+        seated:p.seated,
       };
-      this.renderer.drawPlayer(remotePlayer);
+      this._drawGamePlayer(remotePlayer);
     }
 
     if (this.area.flashlightCapable) {
       this.renderer.drawDustParticles(this._dustParticles);
     }
 
-    this.renderer.drawPlayer(this.player);
+    this._drawGamePlayer(this.player);
 
     ctx.restore();
 

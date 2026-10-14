@@ -2,7 +2,9 @@ import { useEffect, useRef } from "react";
 import { Game } from "../../engine/core/Game.js";
 import { useRoomStore } from "../../store/roomStore.js";
 import { useRoomSocket } from "../../hooks/useRoomSocket.js";
+import "../../styles/aiRoom.css";
 import RoomRadar from "./RoomRadar.jsx";
+import RobotProfile from "./RobotProfile.jsx";
 
 /**
  * Mounts the canvas + HUD + modal DOM that the vanilla game engine expects,
@@ -15,7 +17,7 @@ import RoomRadar from "./RoomRadar.jsx";
 export default function GameCanvas() {
   const canvasRef = useRef(null);
   const gameRef = useRef(null);
-  const { sendPlayerState, completeTask } = useRoomSocket();
+  const { sendPlayerState, completeTask, requestSeat, submitAttempt, requestDoor, leaveRoom } = useRoomSocket();
   const patchPlayer = useRoomStore((s) => s.patchPlayer);
 
   // Same pattern as LobbyCanvas: refs kept fresh by a store subscription so
@@ -40,30 +42,27 @@ export default function GameCanvas() {
     const game = new Game(canvas, {
       getMySocketId: () => mySocketIdRef.current,
       getPlayers: () => roomRef.current?.players || [],
-      onLocalMove: sendPlayerState,
+      getSolvedTasks: () => roomRef.current?.solvedTasks || {},
+      onLocalMove: patch => {sendPlayerState(patch);patchPlayer(mySocketIdRef.current,patch);},
+      onSeatRequest: requestSeat,
+      onAttempt:submitAttempt,onDoorRequest:requestDoor,getDoors:()=>roomRef.current?.doors||{},
       // Optimistic local update — see the matching comment in Lobby.jsx's
       // handleColorChange — the server's own broadcast never echoes back
       // to the sender, so without this the radar's "you" row would be
       // stuck on whichever room the player spawned into.
       onAreaChange: (area) => patchPlayer(mySocketIdRef.current, { area }),
-      getUnlockedAreas: () => roomRef.current?.unlockedAreas || ["office"],
+      getUnlockedAreas: () => roomRef.current?.unlockedAreas || ["ai"],
       getTaskProgress: () => roomRef.current?.taskProgress || {},
-      onTaskComplete: (area, taskId) => {
+      onTaskComplete: (area, taskId, answer) => {
         const roomId = roomRef.current?.id;
-        if (roomId) completeTask(roomId, area, taskId);
+        if (roomId) completeTask(roomId, area, taskId, answer);
       },
     });
     gameRef.current = game;
     game.start();
 
     return () => {
-      // Game has no explicit destroy() yet (Stage 1 parity with the
-      // original main.js, which never tore it down either) — resize
-      // listeners are cleaned up defensively here so React StrictMode's
-      // double-mount in dev doesn't stack duplicate listeners.
-      window.removeEventListener("resize", game._resize);
-      window.removeEventListener("orientationchange", game._resize);
-      if (game._resizeObserver) game._resizeObserver.disconnect();
+      game.destroy();
       gameRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -76,6 +75,11 @@ export default function GameCanvas() {
       {/* HUD layer: interaction prompts, team progress, flashlight hint */}
       <div id="hud">
         <RoomRadar />
+        <RobotProfile />
+        <button id="door-button" className="hidden" onClick={()=>gameRef.current?._requestDoor()}>Eshikni ochish · E</button>
+        <div id="game-over" className="hidden"><div><h2>Quvvat tugadi</h2><p>Robotingizning quvvati 0%. Bu o‘yin siz uchun tugadi.</p><button onClick={leaveRoom}>Yangi o‘yin</button></div></div>
+        <div id="ai-room-guide"><strong>ChatGPT AI Lab</strong> · WASD / ↑↓←→ yurish · E savol · Simlarni ulang · buyumlardan savol toping · Space: o‘tirish</div>
+        <div id="arcade-room-guide" className="hidden"><strong>Arcade</strong> · E: o‘ynash · Space: o‘tirish · Kirish panellaridagi boshqotirmalarni bajaring</div>
         <div id="team-progress" className="hidden"></div>
         <div id="area-unlock-toast" className="hidden"></div>
         <div id="energy-bar" className="hidden">
@@ -117,6 +121,9 @@ export default function GameCanvas() {
           <div className="modal-body editor-body">
             <p id="task-prompt" className="task-prompt"></p>
 
+            <div id="arcade-board" aria-label="Arcade o‘yini"></div>
+            <div id="wire-board" aria-label="Sim ulash boshqotirmasi"></div>
+            <div id="quiz-options" role="group" aria-label="Javob variantlari"></div>
             <div className="editor-shell">
               <div className="editor-topbar">
                 <span className="editor-dot dot-red"></span>
@@ -147,7 +154,7 @@ export default function GameCanvas() {
               </button>
             </div>
 
-            <div id="result-panel" className="result-panel hidden"></div>
+            <div id="result-panel" className="result-panel hidden" role="status" aria-live="polite"></div>
           </div>
         </div>
       </div>

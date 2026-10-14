@@ -1,0 +1,190 @@
+/* The AI terminal is a short, keyboard-accessible quiz instead of a code editor. */
+#quiz-options { display: none; }
+#modal-backdrop.theme-ai .editor-shell { display: none; }
+#modal-backdrop.theme-ai #quiz-options { display: grid; gap: 12px; margin: 22px 0; }
+#modal-backdrop.theme-ai .modal {
+  background: #10282e;
+  border: 1px solid #4eac97;
+  box-shadow: 0 24px 90px #0009, 0 0 36px #65e2bb18;
+}
+#modal-backdrop.theme-ai .modal-icon { background: #83f3cd; color: #10282e; }
+#modal-backdrop.theme-ai .modal-title { color: #caffea; }
+#modal-backdrop.theme-ai .task-prompt { color: #d5eee6; background: #15383c; border-color: #376b65; }
+.quiz-option {
+  display: flex; gap: 14px; align-items: center; width: 100%;
+  padding: 15px 16px; text-align: left; color: #d2e9e5;
+  background: #16353b; border: 1px solid #34585b; border-radius: 10px;
+  font: inherit; cursor: pointer; line-height: 1.5;
+}
+.quiz-letter {
+  display: grid; place-items: center; flex: 0 0 30px; height: 30px;
+  border: 1px solid #496d6b; border-radius: 6px;
+  font: bold 14px "Courier New", monospace; color: #8cf1cf;
+}
+.quiz-option:hover { background: #1a4547; border-color: #6bcbb1; }
+.quiz-option.selected { background: #20544e; border-color: #83f3cd; }
+.quiz-option:focus-visible { outline: 3px solid #83f3cd; outline-offset: 3px; }
+#modal-backdrop.theme-ai .btn-primary { background: #83f3cd; color: #10282e; }
+#modal-backdrop.theme-ai .btn-primary:disabled { opacity: .4; cursor: default; }
+#modal-backdrop.theme-ai .result-panel p { margin: 10px 0 0; line-height: 1.6; }
+#ai-room-guide {
+  position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%);
+  background: #0e252eef; border: 1px solid #38685e; border-radius: 10px;
+  color: #b8dacd; padding: 12px 18px; font-size: 13px; text-align: center;
+  max-width: calc(100vw - 32px); width: max-content;
+}
+#ai-room-guide strong { color: #93f3cd; }
+@media(max-width: 600px) {
+  .quiz-option { padding: 11px; gap: 10px; font-size: 14px; }
+  #ai-room-guide { bottom: 14px; font-size: 11px; }
+}
+
+#wire-board { display:none; position:relative; height:264px; margin:24px 0; }
+.theme-wires #wire-board { display:block; }
+#modal-backdrop.theme-wires #quiz-options { display:none; }
+#wire-board svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.wire-column { position:absolute; top:12px; width:26.923%; display:grid; gap:12px; }
+.wire-left { left:0; } .wire-right { right:0; }
+.wire-pin {
+  height:48px; border:1px solid var(--pin-color); border-radius:8px; background:#15343b;
+  color:var(--pin-color); font-family:inherit; font-size:14px; font-weight:600; cursor:pointer;
+}
+.wire-pin.selected { outline:3px solid #ebf8df; outline-offset:3px; }
+.wire-pin.connected { background:#244c50; }
+.wire-pin:focus-visible { outline:3px solid #ebf8df; outline-offset:3px; }
+@media(max-width:600px){ .wire-pin {font-size:11px;} }
+
+/* Matte controls: no bloom, shimmer or luminous borders. */
+#modal-backdrop .modal, #modal-backdrop .modal * {box-shadow:none!important;text-shadow:none!important;}
+#modal-backdrop .modal::before,#modal-backdrop .modal::after{display:none!important;}
+#modal-backdrop .modal{background:#222c33!important;border:1px solid #58636b!important;max-height:90vh;overflow:auto;}
+#modal-backdrop .modal-header{background:#29343c!important;border-color:#46545e!important;}
+#modal-backdrop .modal-title{color:#e0e5e7!important;}
+#modal-backdrop .modal-icon{background:#43575d!important;color:#d9e4e4!important;}
+#modal-backdrop .task-prompt{background:#2a373e!important;border-color:#485960!important;color:#d0d9dc!important;}
+#modal-backdrop .quiz-option,#modal-backdrop .wire-pin{background:#29383f!important;border-color:#52616a!important;color:#d5dfe1!important;}
+#modal-backdrop .quiz-option.selected,#modal-backdrop .wire-pin.selected{background:#40534e!important;border-color:#8a9d8d!important;}
+#modal-backdrop .btn-primary{background:#728b7b!important;color:#101a18!important;}
+#modal-backdrop .result-panel{background:#253137!important;border-color:#58675e!important;}
+#modal-backdrop .result-header{color:#c6d4ca!important;}
+#modal-backdrop button:focus-visible{outline:2px solid #b4c2c6!important;outline-offset:3px;}
+#modal-backdrop svg{filter:none!important;}
+.power-hud{position:absolute;right:24px;top:24px;width:180px;padding:14px 18px;background:#202a32;border:1px solid #4b5963;border-radius:12px;color:#d5dedf;}
+.power-hud strong{float:right;}
+.power-track{height:8px;background:#131d22;border-radius:4px;margin-top:10px;overflow:hidden;}
+#power-fill{height:100%;width:100%;background:#759889;transition:width .25s;}
+#door-button{pointer-events:auto;position:absolute;bottom:105px;left:50%;transform:translateX(-50%);padding:13px 20px;border:1px solid #738680;background:#273d39;color:#d6e0d8;border-radius:8px;cursor:pointer;}
+#game-over{position:fixed;inset:0;z-index:100;display:grid;place-items:center;background:#0b131dcc;pointer-events:auto;}
+#game-over>div{max-width:400px;margin:20px;padding:32px;background:#253039;border:1px solid #617078;border-radius:14px;text-align:center;color:#e0e5e7;}
+#game-over button{padding:12px 22px;background:#7a9080;border:0;border-radius:7px;cursor:pointer;}
+#game-over.hidden{display:none;}
+@media(max-width:600px){.power-hud{top:100px;right:12px;width:145px;padding:10px;}#door-button{bottom:120px;}}
+
+/* Colour is reserved for matching contacts in the wiring puzzle. */
+#modal-backdrop.theme-wires #wire-board .wire-pin {
+ color:var(--pin-color)!important;
+ border-color:var(--pin-color)!important;
+}
+#modal-backdrop.theme-wires #wire-board .wire-pin.selected {
+ border-color:var(--pin-color)!important;
+ outline-color:var(--pin-color)!important;
+}
+
+/* Compact in-world navigation and robot identity HUD. */
+#room-radar.mini-radar{top:18px;left:18px;width:252px;min-width:0;box-sizing:border-box;padding:12px;background:#17252aef;border:1px solid #526c68;border-radius:5px;box-shadow:4px 4px 0 #0b171c88;backdrop-filter:none;pointer-events:auto;color:#c7d8d1;}
+.mini-radar-heading{display:flex;justify-content:space-between;align-items:center;font:700 10px "Courier New",monospace;letter-spacing:1px;color:#b3c9be;margin-bottom:9px;}
+.mini-radar-heading>span:first-child{display:flex;align-items:center;gap:7px;}
+.mini-radar-heading i{width:6px;height:6px;background:#89aa98;display:inline-block;}
+.mini-radar-heading>span:last-child{font-size:9px;color:#79938c;}
+.radar-area-tabs{display:flex;gap:5px;margin-bottom:8px;}
+.radar-area-tabs button{flex:1;display:flex;justify-content:center;align-items:center;gap:6px;background:#23373b;border:1px solid #415b5c;border-radius:3px;padding:5px 3px;font:600 10px "Courier New",monospace;color:#a9beba;cursor:pointer;}
+.radar-area-tabs button[aria-pressed="true"]{background:#3b514b;border-color:#90ad9b;color:#e0e9df;}
+.radar-area-tabs button:disabled{opacity:.4;cursor:default;}
+.radar-area-tabs small{font-size:9px;opacity:.7;}
+.radar-area-tabs button:focus-visible{outline:2px solid #c3d3bd;outline-offset:2px;}
+.radar-map-shell{background:#101d23;border:1px solid #354d51;padding:5px;border-radius:3px;line-height:0;}
+.radar-map{display:block;width:100%;height:132px;}
+.radar-map-caption{display:flex;justify-content:space-between;font:600 10px "Courier New",monospace;margin:8px 0 0;}
+.radar-map-caption small{color:#7f9991;font-size:9px;}
+.radar-self-key{color:#b6c9ba;}
+.radar-team-strip{display:flex;gap:6px;overflow:auto;max-width:100%;margin-top:8px;padding-bottom:2px;scrollbar-width:thin;scrollbar-color:#516d63 transparent;}
+.radar-team-strip>span{display:flex;align-items:center;gap:4px;flex-shrink:0;max-width:120px;overflow:hidden;white-space:nowrap;font-size:9px;color:#a4bab0;}
+.radar-team-strip i{display:inline-block;flex-shrink:0;width:6px;height:6px;border:1px solid #ffffff33;border-radius:50%;}
+.radar-team-strip b{font-size:8px;color:#c1d4c5;margin-right:3px;}
+.robot-profile{position:absolute;right:18px;top:18px;display:flex;align-items:center;gap:12px;width:226px;box-sizing:border-box;padding:10px 12px;background:#18252bef;border:1px solid #536b68;border-radius:5px;box-shadow:4px 4px 0 #0b171c88;pointer-events:auto;color:#d7e1d9;}
+.robot-portrait-frame{position:relative;width:62px;height:66px;flex-shrink:0;border:1px solid #657d78;background:#253b3d;border-radius:4px;box-shadow:inset 3px 3px 0 #14272b;}
+.robot-portrait{width:62px;height:62px;display:block;}
+.profile-status-dot{position:absolute;right:4px;bottom:4px;width:5px;height:5px;background:var(--robot-color);border:1px solid #b8c8ba;}
+.profile-details{flex:1;min-width:0;}
+.profile-name{display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:12px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:126px;}
+.profile-name>span{font:700 8px "Courier New",monospace;letter-spacing:1px;color:#a1b7a9;}
+.profile-energy-label{display:flex;align-items:center;justify-content:space-between;margin:9px 0 5px;font:700 9px "Courier New",monospace;letter-spacing:1px;color:#8fa89d;}
+.profile-energy-label strong{font:700 12px "Courier New",monospace;color:#d8e5da;}
+.profile-battery{position:relative;display:flex;gap:3px;height:17px;box-sizing:border-box;padding:3px;margin-right:5px;border:1px solid #a4b6a7;border-radius:3px;background:#101e23;}
+.profile-battery::after{content:"";position:absolute;right:-5px;top:4px;width:3px;height:7px;background:#a4b6a7;border-radius:0 1px 1px 0;}
+.charge-cell{flex:1;overflow:hidden;border-radius:1px;background:#2b3d41;}
+.charge-cell i{display:block;height:100%;background:var(--charge-color);transition:width .2s;}
+@media(max-width:720px){
+ #room-radar.mini-radar{top:12px;left:12px;width:205px;padding:9px;}
+ .radar-map{height:108px;}
+ .robot-profile{top:12px;right:12px;width:186px;padding:8px;gap:8px;}
+ .robot-portrait-frame{width:47px;height:52px;}
+ .robot-portrait{width:47px;height:47px;}
+ #hud #team-progress{top:auto;bottom:94px;max-width:calc(100vw - 32px);white-space:nowrap;font-size:11px;}
+}
+@media(max-width:440px){
+ #room-radar.mini-radar{width:176px;padding:7px;}
+ .radar-map{height:91px;}
+ .robot-profile{width:156px;gap:6px;padding:7px;}
+ .robot-portrait-frame{width:37px;height:44px;}
+ .robot-portrait{width:37px;height:37px;}
+ .profile-name{font-size:10px;}
+ .profile-name>span{display:none;}
+ .profile-energy-label{margin-top:6px;}
+}
+
+@media(max-width:360px){#room-radar.mini-radar{width:148px;}.robot-profile{width:140px;}.radar-area-tabs button{font-size:9px;gap:3px;}}
+
+/* One small area radar and neutral profile design for every game area. */
+#room-radar.mini-radar.area-radar{width:190px;padding:9px 10px;background:#1c242bec;border-color:#626f73;color:#d0d9d5;}
+#room-radar.area-radar .mini-radar-heading{font-size:9px;margin-bottom:3px;}
+#room-radar.area-radar .mini-radar-heading>span:last-child{font-size:8px;}
+#room-radar.area-radar .radar-map{height:59px;width:100%;}
+#room-radar.area-radar .radar-map-caption{font-size:9px;margin-top:3px;}
+.robot-profile{background:#1c242bec;border-color:#626f73;}
+.robot-portrait-frame{background:#2b363d;border-color:#737e82;}
+@media(max-width:720px){#room-radar.mini-radar.area-radar{width:170px;padding:8px;}}
+@media(max-width:440px){#room-radar.mini-radar.area-radar{width:154px;padding:7px;}}
+@media(max-width:360px){#room-radar.mini-radar.area-radar{width:142px;padding:6px;}}
+
+#arcade-board{display:none;}
+#modal-backdrop.theme-arcade #arcade-board{display:block;margin:16px 0;}
+#modal-backdrop.theme-arcade .editor-shell,#modal-backdrop.theme-arcade #quiz-options,#modal-backdrop.theme-arcade #wire-board{display:none!important;}
+.arcade-game-screen{padding:18px;background:#151e27;border:3px solid #64757d;border-radius:8px;}
+.arcade-play-grid{display:grid;gap:8px;max-width:360px;margin:auto;}
+.arcade-play-grid.memory{grid-template-columns:repeat(2,1fr);}
+.arcade-play-grid.lights{grid-template-columns:repeat(3,1fr);max-width:260px;}
+.arcade-play-grid.maze{grid-template-columns:repeat(5,1fr);gap:4px;max-width:280px;}
+.arcade-play-grid.pairs{grid-template-columns:repeat(4,1fr);}
+.arcade-key{min-height:52px;background:#354653;color:#dae4df;border:1px solid #7f9494;border-radius:5px;font:700 18px "Courier New",monospace;cursor:pointer;}
+.arcade-key:hover{background:#435e66;}
+.arcade-key:disabled{cursor:default;}
+.arcade-key.lit{background:#b5a067;color:#17252a;border-color:#d5c59a;}
+.arcade-key.matched{background:#507666;color:#d5e8d6;}
+.maze-cell{aspect-ratio:1;background:#354f55;display:grid;place-items:center;font-size:24px;color:#e7dcc0;border:1px solid #547275;}
+.maze-cell.maze-wall{background:#788789;border-color:#9aa7a5;}
+.maze-controls{display:flex;justify-content:center;gap:8px;margin:14px 0;}
+.maze-controls .arcade-key{min-width:48px;min-height:42px;}
+.arcade-game-status{text-align:center;color:#bbcec1!important;font-size:13px;min-height:20px;}
+#arcade-room-guide{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);padding:10px 16px;max-width:calc(100vw - 32px);width:max-content;font-size:12px;text-align:center;background:#202a34ee;color:#c7d3d8;border:1px solid #617178;border-radius:5px;}
+#arcade-room-guide.hidden{display:none;}
+@media(max-width:600px){.arcade-game-screen{padding:10px;}.arcade-key{min-height:43px;font-size:15px;}#arcade-room-guide{font-size:10px;}}
+
+
+.pool-game-screen{padding:8px;background:#241c30;border:2px solid #887193;border-radius:5px;}
+.pool-canvas{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair;}
+.pool-controls{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0;}
+.pool-controls label{display:grid;gap:6px;font-size:12px;color:#d3c8d8;}
+.pool-controls input{width:100%;accent-color:#bc85b5;}
+.pool-shoot{grid-column:1/-1;font-size:14px;}
+

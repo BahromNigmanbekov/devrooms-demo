@@ -44,6 +44,10 @@ Repositoryni import qiling:
 
 Repository rootdagi vercel.json build sozlamalarini beradi.
 Shu tarzda frontend import qiladigan shared fayllari ham buildga kiradi.
+Root Directory oldindan frontend bo'lsa, frontend/vercel.json ishlatiladi:
+install npm ci, build npm run build, output dist. Dashboarddagi eski command
+override'larini o'chiring. Bu rejimda root tashqarisidagi shared fayllarini
+buildga kiritish sozlamasini yoqish kerak. Tavsiya: repository rootdan build.
 URL namunasi: https://office-game-backend.onrender.com (oxirida / yo'q).
 Environment o'zgarsa frontendni Redeploy qiling: Vite qiymatni buildga yozadi.
 Vercel domeni o'zgarsa Render CLIENT_ORIGIN ni ham yangilang.

@@ -81,8 +81,9 @@ export class Modal {
     this.wireBoard.replaceChildren();
     if (wires) this._drawWires();
     this.backdrop.classList.toggle("theme-ai",quiz || wires);
+    this.backdrop.classList.toggle('theme-html',task.theme==='office'&&quiz);
     this.backdrop.classList.toggle("theme-park",task.theme==="park");
-    this.backdrop.classList.toggle("theme-office",!quiz&&!wires&&task.theme!=="park");
+    this.backdrop.classList.toggle("theme-office",task.theme==='office'||(!quiz&&!wires&&task.theme!=="park"));
     this.runBtn.textContent=wires ? "Ulanishni tekshirish" : quiz ? "Javobni tekshirish" : "Run · Ctrl+Enter";
     this.resetBtn.textContent=wires ? "Simlarni qayta ulash" : quiz ? "Qayta tanlash" : "Reset";
     this.runBtn.disabled=quiz || wires;

@@ -1,5 +1,10 @@
 /* The AI terminal is a short, keyboard-accessible quiz instead of a code editor. */
 #quiz-options { display: none; }
+#modal-backdrop.theme-html .quiz-option span:last-child{font-family:Consolas,"Courier New",monospace;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.5}
+#modal-backdrop.theme-html .task-prompt{white-space:pre-wrap}
+#office-room-guide{position:absolute;bottom:125px;left:50%;transform:translateX(-50%);max-width:calc(100vw - 32px);width:max-content;padding:12px 18px;border:1px solid #526b89;border-radius:10px;background:#162339ef;color:#d0deef;font-size:13px;text-align:center}
+#office-room-guide strong{color:#8acafb}
+@media(max-width:650px){#office-room-guide{bottom:175px;font-size:11px}}
 #modal-backdrop.theme-ai .editor-shell { display: none; }
 #modal-backdrop.theme-ai #quiz-options { display: grid; gap: 12px; margin: 22px 0; }
 #modal-backdrop.theme-ai .modal {

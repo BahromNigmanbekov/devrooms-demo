@@ -23,7 +23,7 @@ export const AREAS = {
   },
   office: {
     key: "office",
-    label: "Ofis",
+    label: "HTML Office",
     theme: "office",
     WORLD_WIDTH: OfficeMap.WORLD_WIDTH,
     WORLD_HEIGHT: OfficeMap.WORLD_HEIGHT,
@@ -32,7 +32,7 @@ export const AREAS = {
     buildFurniture: OfficeMap.buildFurniture,
     buildDoorFrames: OfficeMap.buildDoorFrames,
     spawn: OfficeMap.SPAWN,
-    interiorDoors:Object.entries(OfficeMap.ROOMS).map(([id,r])=>({id,x:r.door.side==='right'?r.x+r.w-24:r.x,y:r.y+r.door.at,w:24,h:120,roomBounds:r})),
+    interiorDoors:Object.entries(OfficeMap.ROOMS).map(([id,r])=>({id,x:r.door.side==='right'?r.x+r.w-24:r.x,y:r.y+r.door.at,w:24,h:OfficeMap.DOOR_SIZE,roomBounds:r})),
     returnGate:OfficeMap.RETURN_GATE,returnTrigger:OfficeMap.RETURN_GATE_TRIGGER,
     getTask: getTaskForId,
     exitGate: OfficeMap.EXIT_GATE, // targetArea: "park"

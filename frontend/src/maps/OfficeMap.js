@@ -5,11 +5,11 @@
  * a room, and the player walks through doorways to reach them.
  */
 
-export const WORLD_WIDTH = 1800;
-export const WORLD_HEIGHT = 1100;
+export const WORLD_WIDTH = 2880;
+export const WORLD_HEIGHT = 1760;
 
 const WALL_THICKNESS = 24;
-const DOOR_SIZE = 120; // wide enough for the player (radius 16) to pass comfortably
+export const DOOR_SIZE = 144; // wide enough for the player (radius 16) to pass comfortably
 
 // ---- Palette --------------------------------------------------------------
 export const COLORS = {
@@ -99,10 +99,10 @@ function buildRoom(x, y, w, h, door) {
 // Four rooms in a 2x2 layout, each opening onto the shared hallway space
 // between them so the player can walk from any room to any other.
 export const ROOMS = {
-  openOffice: { x: 60, y: 60, w: 760, h: 400, door: { side: "right", at: 160 } },
-  serverRoom: { x: 1000, y: 60, w: 740, h: 400, door: { side: "left", at: 160 } },
-  meetingRoom: { x: 60, y: 660, w: 760, h: 380, door: { side: "right", at: 130 } },
-  breakRoom: { x: 1000, y: 660, w: 740, h: 380, door: { side: "left", at: 130 } },
+  openOffice: { x: 80, y: 80, w: 1160, h: 640, door: { side: "right", at: 400 } },
+  serverRoom: { x: 1640, y: 80, w: 1160, h: 640, door: { side: "left", at: 400 } },
+  meetingRoom: { x: 80, y: 1040, w: 1160, h: 640, door: { side: "right", at: 160 } },
+  breakRoom: { x: 1640, y: 1040, w: 1160, h: 640, door: { side: "left", at: 160 } },
 };
 
 /** Small decorative arch drawn over each doorway gap (purely visual). */
@@ -132,8 +132,8 @@ export function buildDoorFrames() {
 // Game.js adds to the obstacle list only while "park" isn't in the room's
 // unlocked areas, so unlocking it is just "stop adding that one obstacle,"
 // not a map rebuild.
-export const RETURN_GATE={x:0,y:490,w:24,h:120,targetArea:'ai'};
-export const RETURN_GATE_TRIGGER={x:24,y:490,w:50,h:120};
+export const RETURN_GATE={x:0,y:WORLD_HEIGHT/2-DOOR_SIZE/2,w:24,h:DOOR_SIZE,targetArea:'ai'};
+export const RETURN_GATE_TRIGGER={x:24,y:WORLD_HEIGHT/2-DOOR_SIZE/2,w:50,h:DOOR_SIZE};
 export const EXIT_GATE = {
   x: WORLD_WIDTH - WALL_THICKNESS,
   y: WORLD_HEIGHT / 2 - DOOR_SIZE / 2,
@@ -195,7 +195,7 @@ export function buildFurniture() {
       w: 36,
       h: 20,
       interactRadius: 78,
-      label: "Programming Terminal",
+      label: "HTML testi",
     };
     interactables.push(monitor);
     blocking.push({ type: "chair", x: x + deskW / 2 - 18, y: y + deskH + 8, w: 36, h: 36 });
@@ -207,12 +207,12 @@ export function buildFurniture() {
   // one) so every terminal can be wired to its own distinct question.
   const o = ROOMS.openOffice;
   [
-    [o.x + 60, o.y + 50, "terminal-openoffice-1"],
-    [o.x + 260, o.y + 50, "terminal-openoffice-2"],
-    [o.x + 460, o.y + 50, "terminal-openoffice-3"],
-    [o.x + 60, o.y + 230, "terminal-openoffice-4"],
-    [o.x + 260, o.y + 230, "terminal-openoffice-5"],
-    [o.x + 460, o.y + 230, "terminal-openoffice-6"],
+    [o.x + 100, o.y + 110, "terminal-openoffice-1"],
+    [o.x + 460, o.y + 110, "terminal-openoffice-2"],
+    [o.x + 820, o.y + 110, "terminal-openoffice-3"],
+    [o.x + 100, o.y + 390, "terminal-openoffice-4"],
+    [o.x + 460, o.y + 390, "terminal-openoffice-5"],
+    [o.x + 820, o.y + 390, "terminal-openoffice-6"],
   ].forEach(([x, y, id]) => pod(x, y, id));
   decor.push({ type: "rug", x: o.x + 40, y: o.y + 150, w: 480, h: 200 });
   decor.push({ type: "clock", x: o.x + o.w - 60, y: o.y + 14, w: 30, h: 30 });
@@ -227,8 +227,8 @@ export function buildFurniture() {
   {
     const deskW = 130;
     const deskH = 60;
-    const dx = s.x + s.w - 220;
-    const dy = s.y + s.h - 130;
+    const dx = s.x + s.w - 260;
+    const dy = s.y + s.h - 220;
     blocking.push({ type: "desk", x: dx, y: dy, w: deskW, h: deskH });
     interactables.push({
       type: "computer",
@@ -238,13 +238,15 @@ export function buildFurniture() {
       w: 36,
       h: 20,
       interactRadius: 78,
-      label: "Server Control Terminal",
+      label: "HTML: rasmlar",
     });
     blocking.push({ type: "chair", x: dx + deskW / 2 - 18, y: dy + deskH + 8, w: 36, h: 36 });
   }
-  decor.push({ type: "whiteboard", x: s.x + 340, y: s.y + 50, w: 160, h: 90 });
+  decor.push({ type: "whiteboard", x: s.x + 340, y: s.y + 30, w: 160, h: 70 });
   decor.push({ type: "rug", x: s.x + s.w - 260, y: s.y + s.h - 160, w: 200, h: 100 });
-  pod(s.x + 420, s.y + 230, "terminal-server-2");
+  pod(s.x + 540, s.y + 390, "terminal-server-2");
+  pod(s.x + 440, s.y + 110, "terminal-server-3");
+  pod(s.x + 800, s.y + 110, "terminal-server-4");
 
   // ---- Room 3: Meeting Room — round table + a wall presentation screen ----
   const m = ROOMS.meetingRoom;
@@ -270,10 +272,11 @@ export function buildFurniture() {
       w: 60,
       h: 24,
       interactRadius: 84,
-      label: "Meeting Room Terminal",
+      label: "HTML testi",
     });
   }
   pod(m.x + 90, m.y + m.h - 160, "terminal-meeting-2");
+  pod(m.x + 830, m.y + 110, "terminal-meeting-3");
 
   // ---- Room 4: Break Room — printers, shelf, and a small kiosk terminal ---
   const b = ROOMS.breakRoom;
@@ -296,18 +299,19 @@ export function buildFurniture() {
       w: 36,
       h: 20,
       interactRadius: 78,
-      label: "Break Room Kiosk",
+      label: "HTML: formalar",
     });
     blocking.push({ type: "chair", x: dx + deskW / 2 - 18, y: dy + deskH + 8, w: 36, h: 36 });
   }
-  pod(b.x + 400, b.y + 40, "terminal-break-2");
+  pod(b.x + 460, b.y + 110, "terminal-break-2");
+  pod(b.x + 460, b.y + 390, "terminal-break-3");
 
   // ---- Decorative plants: hallway + room corners, never on a doorway -----
   const plants = [
-    [o.x + 690, o.y + 40],
-    [m.x + 690, m.y + 40],
+    [o.x + o.w - 70, o.y + 40],
+    [m.x + m.w - 70, m.y + 40],
     [s.x + 40, s.y + 40],
-    [b.x + 660, b.y + 320],
+    [b.x + 750, b.y + 480],
     [WORLD_WIDTH / 2 - 20, 40],
     [WORLD_WIDTH / 2 - 220, WORLD_HEIGHT - 70],
     [WORLD_WIDTH / 2 + 190, WORLD_HEIGHT - 70],

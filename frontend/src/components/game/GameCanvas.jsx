@@ -85,6 +85,7 @@ export default function GameCanvas() {
         <div id="game-over" className="hidden"><div><h2>Quvvat tugadi</h2><p>Robotingizning quvvati 0%. Bu o‘yin siz uchun tugadi.</p><button onClick={leaveRoom}>Yangi o‘yin</button></div></div>
         <div id="ai-room-guide"><strong>ChatGPT AI Lab</strong> · WASD / ↑↓←→ yurish · E savol · Simlarni ulang · buyumlardan savol toping · Space: o‘tirish</div>
         <div id="arcade-room-guide" className="hidden"><strong>Arcade</strong> · E: o‘ynash · Space: o‘tirish · Kirish panellaridagi boshqotirmalarni bajaring</div>
+        <div id="office-room-guide" className="hidden"><strong>HTML Office</strong> · Terminal yonida E ni bosing · 4 variantdan javob tanlang · 16 ta HTML testi</div>
         <div id="team-progress" className="hidden"></div>
         <div id="area-unlock-toast" className="hidden"></div>
         <div id="energy-bar" className="hidden">

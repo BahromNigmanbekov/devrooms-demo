@@ -181,7 +181,7 @@ export class Game {
       this.player.x += (index % 6 - (columns - 1) / 2) * 84;
       this.player.y += Math.floor(index / 6) * 60 - Math.floor(Math.max(0, peers.length - 1) / 6) * 30;
     }
-    const arrivals={office:{ai:{x:140,y:550},park:{x:1640,y:550}},ai:{office:{x:2690,y:900}},park:{office:{x:220,y:650}}};
+    const arrivals={office:{ai:{x:140,y:AREAS.office.spawn.y},park:{x:AREAS.office.WORLD_WIDTH-160,y:AREAS.office.spawn.y}},ai:{office:{x:2690,y:900}},park:{office:{x:220,y:650}}};
     Object.assign(this.player,arrivals[areaKey]?.[fromArea]||{});
     this.camera.x = this.player.x;
     this.camera.y = this.player.y;
@@ -189,6 +189,7 @@ export class Game {
     const guide = document.getElementById("ai-room-guide");
     if (guide) guide.classList.toggle("hidden", areaKey !== "ai");
     document.getElementById("arcade-room-guide")?.classList.toggle("hidden",areaKey!=="park");
+    document.getElementById('office-room-guide')?.classList.toggle('hidden',areaKey!=='office');
     this.flashlightOn = true;
     this._flashlightIntensity = area.flashlightCapable ? 0 : 1; // fades in on entry rather than snapping on
     if (area.flashlightCapable) {

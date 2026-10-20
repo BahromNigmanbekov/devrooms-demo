@@ -6,6 +6,8 @@ export default function WeaponHUD({getPlayer,getAim}){
  const me=useRoomStore(s=>s.room?.players.find(p=>p.id===s.mySocketId));
  const item=getWeapon(me?.equipment?.weapon),pending=useRef(false);
  const [now,setNow]=useState(Date.now()),[notice,setNotice]=useState('');
+ const [introVisible,setIntroVisible]=useState(true);
+ const introUntil=useRef(Date.now()+4500);
  const useRefAction=useRef(null);
  function use(event){
   if(!item||pending.current||Date.now()<(me?.weaponReadyAt||0)||me?.eliminated||me?.seated||document.querySelector('.arcade-overlay,#modal-backdrop.open'))return;
@@ -23,12 +25,14 @@ export default function WeaponHUD({getPlayer,getAim}){
  useEffect(()=>{
   let held=false;const canvas=document.getElementById('game-canvas');
   const down=e=>{if(e.button!==0)return;held=true;useRefAction.current?.(e)},up=()=>{held=false};
-  const tick=setInterval(()=>{setNow(Date.now());if(held)useRefAction.current?.()},60);
+  const tick=setInterval(()=>{if(Date.now()<introUntil.current)setNow(Date.now());if(held)useRefAction.current?.()},60);
   const key=e=>{if(e.code==='KeyQ'&&!/INPUT|TEXTAREA/.test(e.target?.tagName)&&!e.target?.isContentEditable){e.preventDefault();useRefAction.current?.()}};
   canvas?.addEventListener('pointerdown',down);window.addEventListener('pointerup',up);window.addEventListener('pointercancel',up);window.addEventListener('blur',up);window.addEventListener('keydown',key);
   return()=>{clearInterval(tick);canvas?.removeEventListener('pointerdown',down);window.removeEventListener('pointerup',up);window.removeEventListener('pointercancel',up);window.removeEventListener('blur',up);window.removeEventListener('keydown',key)};
  },[]);
+ useEffect(()=>{const timer=setTimeout(()=>setIntroVisible(false),4500);return()=>clearTimeout(timer)},[]);
  useEffect(()=>{if(!notice)return;const t=setTimeout(()=>setNotice(''),1700);return()=>clearTimeout(t)},[notice]);
+ if(!introVisible)return null;
  if(!item)return <div className="weapon-hud weapon-empty">Aslahani INVENTORY → Aslahalar bo‘limidan tanlang.</div>;
  const remaining=Math.max(0,(me.weaponReadyAt||0)-now);
  return <section className="weapon-hud" aria-label="Aslaha boshqaruvi"><div className="weapon-hud-info"><strong style={{color:item.color}}>{item.name}</strong><small>{item.description}</small><small>Sichqoncha: nishon / chap tugma: ishlatish</small><small>{me.area==='ai'?'Mashq dronlari: o‘ngdagi yo‘lakda →':'Yurish tomoningizga qarab ishlatiladi'}</small><span>{item.damage?`${item.damage} ZARBA · ${item.range} MASOFA`:'JAMOA YORDAMI'} · {me.practiceScore||0} MASHQ</span></div><button onClick={()=>use()} disabled={remaining>0||me.eliminated||!!me.seated} style={{'--weapon-color':item.color}}><kbd>Q</kbd>{remaining>0?(remaining/1000).toFixed(1)+'s':'ISHLATISH'}</button><div className="weapon-cooldown"><i style={{width:(remaining?Math.max(0,1-remaining/item.cooldown)*100:100)+'%',background:item.color}}/></div>{notice&&<div className="weapon-notice" role="status">{notice}</div>}{me.shieldUntil>now&&<div className="weapon-buff">HIMOYA · {Math.ceil((me.shieldUntil-now)/1000)}s</div>}{me.scanUntil>now&&<div className="weapon-buff">SKANER · {Math.ceil((me.scanUntil-now)/1000)}s</div>}</section>;

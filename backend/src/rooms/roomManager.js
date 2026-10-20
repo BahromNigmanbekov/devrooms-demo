@@ -1,3 +1,4 @@
+import {validateHTMLAnswer} from "../../../shared/htmlActivities.mjs";
 import {sanitizeEquipment} from "../../../shared/equipment.mjs";
 import {createTrainingTargets,useWeapon} from './weaponSystem.js';
 import {startTag,stopTag,tickTag} from './tagSystem.js';
@@ -157,6 +158,7 @@ function completeTask(roomId, area, taskId, answer) {
   const room = rooms.get(roomId);
   if (!room || !room.started || !AREA_SEQUENCE.includes(area)) return null;
   if (!Object.hasOwn(TASKS_BY_AREA[area], taskId)) return null;
+  if(area==="office"&&!validateHTMLAnswer(TASKS_BY_AREA.office[taskId],answer))return null;
   if(area==="park"){const task=TASKS_BY_AREA.park[taskId];if(!validateArcadeAnswer(task,answer)||(task.requires&&!room.areaProgress.park.has(task.requires)))return null;}
   if (area === "ai") {
     const task=AI_TASKS_BY_ID[taskId];
@@ -318,7 +320,7 @@ function submitAttempt(socketId, data={}) {
  if(typeof data.attemptId!=="string"||data.attemptId.length>100) return {ok:false,error:"INVALID_ATTEMPT"};
  const cache=room.attempts.get(socketId)||new Map();room.attempts.set(socketId,cache);
  if(cache.has(data.attemptId)) return {...cache.get(data.attemptId),player:{...player},progress:null};
- const allPass=data.area==="ai"?validateAIAnswer(task,data.answer):task.type==='arcade'?validateArcadeAnswer(task,data.answer):task.type==="css"?runTask(task,String(data.answer||"")).allPass:data.passed===true;
+ const allPass=data.area==="ai"?validateAIAnswer(task,data.answer):task.type==='quiz'?validateHTMLAnswer(task,data.answer):task.type==='arcade'?validateArcadeAnswer(task,data.answer):task.type==="css"?runTask(task,String(data.answer||"")).allPass:data.passed===true;
  const before=player.energy;
  const protectedAttempt=!allPass&&(player.shieldUntil||0)>Date.now();
  if(protectedAttempt)player.shieldUntil=0;

@@ -6,11 +6,23 @@ import { roomManager } from "../rooms/roomManager.js";
  * task-sync and timer events can be added the same way without collisions.
  */
 export function registerRoomSocket(io, socket) {
-  socket.on("room:create", ({ hostNickname, hostColor, maxPlayers, roomName } = {}, ack) => {
+  socket.on('tag:set', ({active}={},ack)=>{
+    if(typeof active!=='boolean'){ack?.({ok:false,error:'INVALID_REQUEST'});return;}
+    const result=roomManager.setTag(socket.id,active);
+    if(result.ok)io.to(result.roomId).emit('room:state',roomManager.serializeRoom(roomManager.getRoom(result.roomId)));
+    ack?.(result);
+  });
+  socket.on('weapon:use', (_data,ack) => {
+    const result=roomManager.useWeapon(socket.id);
+    if(result.ok)io.to(result.roomId).emit('weapon:result',result);
+    ack?.(result);
+  });
+  socket.on("room:create", ({ hostNickname, hostColor, maxPlayers, roomName, equipment } = {}, ack) => {
     const room = roomManager.createRoom({
       hostSocketId: socket.id,
       hostNickname,
       hostColor,
+      equipment,
       maxPlayers,
       roomName,
     });
@@ -18,11 +30,12 @@ export function registerRoomSocket(io, socket) {
     ack?.({ ok: true, room: roomManager.serializeRoom(room) });
   });
 
-  socket.on("room:join", ({ roomId, nickname, color } = {}, ack) => {
+  socket.on("room:join", ({ roomId, nickname, color, equipment } = {}, ack) => {
     const result = roomManager.joinRoom(String(roomId || "").toUpperCase(), {
       socketId: socket.id,
       nickname,
       color,
+      equipment,
     });
     if (result.error) {
       ack?.({ ok: false, error: result.error });

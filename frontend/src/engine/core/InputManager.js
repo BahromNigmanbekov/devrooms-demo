@@ -9,6 +9,7 @@ export class InputManager {
     this.justPressed = new Set();
 
     this._onKeyDown = (e) => {
+      if (document.querySelector(".arcade-overlay")) {this.keys.clear();this.justPressed.clear();return;}
       // While the code editor (or any text field) is focused, let the
       // browser handle the keystroke normally — don't hijack WASD/E as
       // movement, and don't preventDefault (that would break typing).
@@ -45,6 +46,7 @@ export class InputManager {
   }
 
   getMoveVector() {
+    if (document.querySelector(".arcade-overlay")) return {x:0,y:0};
     let x = 0;
     let y = 0;
     if (this.isDown("KeyW") || this.isDown("ArrowUp")) y -= 1;

@@ -1,3 +1,4 @@
+import { usePlayerStore } from "../store/playerStore.js";
 import { useCallback, useEffect } from "react";
 import { connectSocket, disconnectSocket, getSocket } from "../network/socketClient.js";
 import { useRoomStore } from "../store/roomStore.js";
@@ -19,6 +20,8 @@ export function useRoomSocket() {
 
   useEffect(() => {
     const socket = connectSocket();
+    const onCombat=result=>useRoomStore.getState().patchCombat(result);
+    socket.on('weapon:result',onCombat);
 
     const onConnect = () => setMySocketId(socket.id);
     const onRoomState = (room) => setRoom(room);
@@ -45,6 +48,7 @@ export function useRoomSocket() {
     if (socket.connected) onConnect();
 
     return () => {
+      socket.off('weapon:result',onCombat);
       socket.off("room:doors", patchDoors);
       socket.off("connect", onConnect);
       socket.off("room:state", onRoomState);
@@ -61,7 +65,7 @@ export function useRoomSocket() {
       new Promise((resolve, reject) => {
         getSocket().emit(
           "room:create",
-          { hostNickname, hostColor, maxPlayers, roomName },
+          { hostNickname, hostColor, maxPlayers, roomName, equipment:usePlayerStore.getState().equipment },
           (res) => {
             if (!res?.ok) {
               setError(res?.error || "CREATE_FAILED");
@@ -79,7 +83,7 @@ export function useRoomSocket() {
   const joinRoom = useCallback(
     ({ roomId, nickname, color }) =>
       new Promise((resolve, reject) => {
-        getSocket().emit("room:join", { roomId, nickname, color }, (res) => {
+        getSocket().emit("room:join", { roomId, nickname, color, equipment:usePlayerStore.getState().equipment }, (res) => {
           if (!res?.ok) {
             setError(res?.error || "JOIN_FAILED");
             reject(res?.error || "JOIN_FAILED");

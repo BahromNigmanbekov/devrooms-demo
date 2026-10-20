@@ -1,4 +1,7 @@
 import { COLORS } from "../../maps/OfficeMap.js";
+import { drawCosmetics } from "../../components/game/cosmetics.js";
+import { drawWeapon } from "../../components/game/weaponArt.js";
+import {drawHunter} from '../../components/game/hunterArt.js';
 import { shadeHexColor } from "../../utils/color.js";
 
 const TILE_SIZE = 64;
@@ -690,6 +693,9 @@ export class Renderer {
     const w = r * 2.3;
     const h = r * 2.4;
 
+    drawCosmetics(ctx,w,h,player.equipment,view,'behind');
+    if(player.isHunter)drawHunter(ctx,w,h,'behind',view);
+
     if (view === "side") {
       this._drawRobotSide(w, h, color, player.moving);
     } else if (view === "back") {
@@ -698,10 +704,13 @@ export class Renderer {
       this._drawRobotFront(w, h, color, player.moving);
     }
 
+    drawCosmetics(ctx,w,h,player.equipment,view);
+    if(player.isHunter)drawHunter(ctx,w,h,'front',view);
+    drawWeapon(ctx,w,h,player.equipment,player.weaponAction,player.aiming?{facing,mirror}:null);
     ctx.restore();
 
     if (player.nickname) {
-      this._drawNicknamePill(player.x, player.y - h / 2 - 14, player.nickname, player.isLocal);
+      this._drawNicknamePill(player.x, player.y - h / 2 - (player.isHunter?30:player.equipment?.head&&player.equipment.head!=="none"?25:14), player.nickname, player.isLocal);
     }
   }
 

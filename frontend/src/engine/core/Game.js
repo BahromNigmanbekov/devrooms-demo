@@ -13,6 +13,8 @@ import { Renderer } from "../render/Renderer.js";
 import { Modal } from "../../components/ui/ModalController.js";
 import { AREAS } from "../../maps/areas.js";
 import { runTask } from "../systems/CodeChecker.js";
+import {drawCombat} from '../render/CombatRenderer.js';
+import {presentPlayer} from '../../../../shared/playerPresentation.mjs';
 
 export class Game {
   /**
@@ -34,6 +36,7 @@ export class Game {
     this.multiplayer = {
       getMySocketId: multiplayer.getMySocketId || (() => null),
       getPlayers: multiplayer.getPlayers || (() => []),
+      getCombat: multiplayer.getCombat || (()=>({})),
       getSolvedTasks: multiplayer.getSolvedTasks || (() => ({})),
       onSeatRequest: multiplayer.onSeatRequest || null,
       onAttempt:multiplayer.onAttempt,onDoorRequest:multiplayer.onDoorRequest,getDoors:multiplayer.getDoors||(()=>({})),
@@ -50,6 +53,12 @@ export class Game {
     };
 
     this.input = new InputManager();
+    this.pointer={active:false,x:0,y:0};
+    this._aimMove=event=>{const rect=this.canvas.getBoundingClientRect();this.pointer={active:true,x:(event.clientX-rect.left)*this.viewW/rect.width,y:(event.clientY-rect.top)*this.viewH/rect.height};};
+    this._aimLeave=()=>{this.pointer.active=false;};
+    this.canvas.addEventListener('pointermove',this._aimMove);
+    this.canvas.addEventListener('pointerdown',this._aimMove);
+    this.canvas.addEventListener('pointerleave',this._aimLeave);
     this.renderer = new Renderer(this.ctx);
     this.aiRenderer = new AIRoomRenderer(this.ctx);
     this.arcadeRenderer = new ArcadeRoomRenderer(this.ctx);
@@ -209,7 +218,7 @@ export class Game {
     this._lockedInteriorDoors=this._doors.filter(d=>(this._doorAnimation[d.id]||0)<1).map(doorObstacle);
     const signature=this._lockedInteriorDoors.map(d=>d.id).join(",");
     if(signature!==this._interiorSignature){this._interiorSignature=signature;this.collision=new CollisionSystem([...this._baseObstacles,...this._lockedInteriorDoors]);}
-    if(wasLocked===true&&!locked)this._showUnlockToast();
+    if(wasLocked===true&&!locked&&!this.multiplayer.getCombat().tag?.active)this._showUnlockToast();
   }
 
   _showUnlockToast() {
@@ -291,6 +300,9 @@ export class Game {
     window.removeEventListener("orientationchange", this._resize);
     this._resizeObserver?.disconnect();
     this.input.destroy();
+    this.canvas.removeEventListener('pointermove',this._aimMove);
+    this.canvas.removeEventListener('pointerdown',this._aimMove);
+    this.canvas.removeEventListener('pointerleave',this._aimLeave);
     this.modal.destroy();
   }
 
@@ -302,6 +314,7 @@ export class Game {
     this._update(dt, now);
     try {
       this._render();
+      this._drawAim();
     } catch (err) {
       // A single bad frame (e.g. a transient lighting-calculation edge
       // case) must never freeze the game on a stuck black screen — log it
@@ -324,6 +337,8 @@ export class Game {
     const move = this.input.getMoveVector();
     if (!this.modalOpen && this.player.seated && (this.input.wasJustPressed("Space") || (this.input.wasJustPressed("KeyE")&&!this._activeInteractable))) this._requestSeat(null);
     this.player.update(dt, move, this.collision, this.modalOpen || this.player.seated || this._seatPending || this.isGhost);
+    this.player.aiming=this.pointer.active&&!this.modalOpen&&!document.querySelector('.arcade-overlay');
+    if(this.player.aiming)this.player.facing=this.getWeaponAim();
     this.camera.follow(this.player.x, this.player.y, dt);
     this.camera.updateZoom(this.viewW, this.viewH);
     this.camera.clamp(this.viewW, this.viewH);
@@ -332,7 +347,11 @@ export class Game {
     // resync every frame given typical room sizes.
     const me = this.multiplayer.getPlayers().find((p) => p.id === this.multiplayer.getMySocketId());
     if (me) {
+      this.player.seated=!!me.seated;this.player.seatId=me.seatId;
+      if(me.relocationId&&me.relocationId!==this._relocationId){this._relocationId=me.relocationId;this._loadArea(me.area);this.player.x=me.x;this.player.y=me.y;}
       this.player.color = me.color;
+      this.player.equipment = me.equipment;
+      this.player.weaponAction = me.weaponAction;
       this.player.nickname = me.nickname;
       this.player.energy=me.energy??100;this.isGhost=!!me.eliminated;
       if(this.isGhost&&this.modalOpen)this.modal.close();
@@ -344,6 +363,7 @@ export class Game {
         x: this.player.x,
         y: this.player.y,
         facing: this.player.facing,
+        aiming:this.player.aiming,
         moving: this.player.moving,
         area: this.currentArea,
         flashlightOn: this.flashlightOn,
@@ -379,7 +399,7 @@ export class Game {
     this._nearestDoor=this._doors.filter(d=>doorDistance(this.player,d)<105 && this._doorAnimation[d.id]<1).sort((a,b)=>doorDistance(this.player,a)-doorDistance(this.player,b))[0];
     const doorButton=document.getElementById('door-button');
     doorButton?.classList.toggle('hidden',!this._nearestDoor||this.modalOpen||this.isGhost);
-    if(doorButton&&this._nearestDoor)doorButton.textContent=doorAllowed(this._nearestDoor,solved,this.multiplayer.getUnlockedAreas())?'Eshikni ochish · E':this._nearestDoor.requires?(this.currentArea==='park'?'Kirish boshqotirmasini bajaring':'Avval simlarni ulang'):'Avval vazifalarni bajaring';
+    if(doorButton&&this._nearestDoor)doorButton.textContent=(this.multiplayer.getCombat().tag?.active||doorAllowed(this._nearestDoor,solved,this.multiplayer.getUnlockedAreas()))?'Eshikni ochish · E':this._nearestDoor.requires?(this.currentArea==='park'?'Kirish boshqotirmasini bajaring':'Avval simlarni ulang'):'Avval vazifalarni bajaring';
     if(!this.modalOpen&&!this.isGhost&&!this._activeInteractable&&this._nearestDoor&&this.input.wasJustPressed('KeyE'))this._requestDoor();
     this._updatePrompt();
 
@@ -466,7 +486,7 @@ export class Game {
     if(!this._nearestDoor||this.isGhost||this.player.seated||!this.multiplayer.onDoorRequest)return;
     this.multiplayer.onDoorRequest({area:this.currentArea,id:this._nearestDoor.id});
   }
-  _drawDoor(d) {drawDoor(this.ctx,d,this._doorAnimation[d.id]||0,doorAllowed(d,this.multiplayer.getSolvedTasks()[this.currentArea]||[],this.multiplayer.getUnlockedAreas()));}
+  _drawDoor(d) {drawDoor(this.ctx,d,this._doorAnimation[d.id]||0,this.multiplayer.getCombat().tag?.active||doorAllowed(d,this.multiplayer.getSolvedTasks()[this.currentArea]||[],this.multiplayer.getUnlockedAreas()));}
   _drawDoors() {for(const d of this._doors)this._drawDoor(d);}
   _requestSeat(seat) {
     if(this._seatPending || !this.multiplayer.onSeatRequest) return;
@@ -483,8 +503,23 @@ export class Game {
     }).catch(()=>{this._seatPending=false;});
   }
   _drawGamePlayer(player) {
-    this.renderer.drawPlayer({...player, y:player.y-(player.seated?10:0),moving:player.seated?false:player.moving});
+    const id=player.isLocal?this.multiplayer.getMySocketId():player.id;
+    const shown=presentPlayer({...player,id},this.multiplayer.getCombat().tag);
+    this.renderer.drawPlayer({...shown, y:player.y-(player.seated?10:0),moving:player.seated?false:player.moving});
   }
+  getWeaponAim(event){
+    if(event?.clientX!==undefined)this._aimMove(event);
+    if(!this.pointer.active||!this.camera)return this.player.facing;
+    const dx=this.camera.x+(this.pointer.x-this.viewW/2)/this.camera.zoom-this.player.x;
+    const dy=this.camera.y+(this.pointer.y-this.viewH/2)/this.camera.zoom-this.player.y;
+    const length=Math.hypot(dx,dy);return length>1?{x:dx/length,y:dy/length}:this.player.facing;
+  }
+  _drawAim(){
+    if(!this.player.aiming||this.isGhost||document.querySelector('.arcade-overlay'))return;
+    const c=this.ctx,{x,y}=this.pointer;c.save();c.strokeStyle='#d4f5ed';c.lineWidth=1.5;c.shadowColor='#62dce2';c.shadowBlur=4;
+    c.beginPath();c.arc(x,y,7,0,Math.PI*2);c.moveTo(x-14,y);c.lineTo(x-9,y);c.moveTo(x+9,y);c.lineTo(x+14,y);c.moveTo(x,y-14);c.lineTo(x,y-9);c.moveTo(x,y+9);c.lineTo(x,y+14);c.stroke();c.restore();
+  }
+  _drawCombat(){drawCombat(this.ctx,this.multiplayer.getCombat(),this.currentArea,{...this.player,id:this.multiplayer.getMySocketId()},this.interactables);}
   _updatePrompt() {
     const label=this.promptEl.querySelector(".label");
     const key=this.promptEl.querySelector(".key");
@@ -516,6 +551,7 @@ export class Game {
         this._gateLocked !== false,
         this.multiplayer.getTaskProgress().ai || { completed: 0, total: 14 },
         p => this._drawGamePlayer(p), this._wallList.filter(w=>w.interior), this._doors, this._lockedInteriorDoors, d=>this._drawDoor(d));
+      this._drawCombat();
       ctx.restore();
       this.renderer.drawAmbientLighting(this.player, this.viewW, this.viewH, this.camera, { darkness: this.area.darkness });
       return;
@@ -529,6 +565,7 @@ export class Game {
       this.arcadeRenderer.renderArcade(this.area, this._blockingList, [...players, this.player],
         this._activeInteractable?.id, this.multiplayer.getSolvedTasks().park || [],
         p => this._drawGamePlayer(p), this._wallList, this._doors, d => this._drawDoor(d), this._decorList);
+      this._drawCombat();
       ctx.restore();
       this.renderer.drawAmbientLighting(this.player, this.viewW, this.viewH, this.camera, { darkness: this.area.darkness });
       return;
@@ -560,12 +597,15 @@ export class Game {
         otherBeams.push({ x: p.x, y: p.y, points });
       }
       const remotePlayer = {
+        id:p.id,aiming:p.aiming,
         x: p.x,
         y: p.y,
         radius: 16,
         facing: p.facing || { x: 0, y: 1 },
         moving: p.moving,
         color: p.color,
+        equipment: p.equipment,
+        weaponAction:p.weaponAction,
         nickname: p.nickname,
         isLocal: false,
         seated:p.seated,
@@ -578,6 +618,7 @@ export class Game {
     }
 
     this._drawGamePlayer(this.player);
+    this._drawCombat();
 
     ctx.restore();
 

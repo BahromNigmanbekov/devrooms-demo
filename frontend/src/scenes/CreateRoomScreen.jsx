@@ -47,7 +47,7 @@ export default function CreateRoomScreen({ onCreated, onCancel }) {
 
       <form className={styles.panel} onSubmit={handleCreate}>
         <h1 className={styles.title}>Create Room</h1>
-        <p className={styles.subtitle}>Set it up, then share the room code with your team.</p>
+        <p className={styles.subtitle}>Xona yarating va kodini do‘stlaringizga yuboring.</p>
 
         <div className={styles.field}>
           <label className={styles.label} htmlFor="hostNickname">

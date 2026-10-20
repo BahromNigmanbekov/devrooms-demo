@@ -16,9 +16,9 @@ export default function RoomRadar() {
      <rect x={x} y="8" width="50" height="52" rx="3" fill={active?"#3b4b4b":"#293238"} stroke={active?"#a7bdb0":"#626e73"} strokeWidth={active?1.5:1} strokeDasharray={unlocked||active?undefined:"3 2"}/>
      <text x={x+25} y="21" textAnchor="middle" fill={active?"#e0e9e3":"#a1adb2"} fontSize="8" fontFamily="Courier New" fontWeight="bold">{labels[key]}</text>
      {players.map((p,i)=><g key={p.id} className={p.id===myId?"radar-player radar-self":"radar-player"} data-player-id={p.id} transform={`translate(${x+11+(i%4)*9} ${30+Math.floor(i/4)*7})`} opacity={p.eliminated?0.4:1}>
-      <title>{p.nickname} · {labels[key]}{p.id===myId?" · Siz":""}</title>
+      <title>{room.tag?.active&&room.tag.hunterId===p.id?'Ovchi':p.nickname} · {labels[key]}{p.id===myId?" · Siz":""}</title>
       {p.id===myId&&<circle r="3.8" fill="none" stroke="#edf2ee" strokeWidth=".8"/>}
-      <circle r="2.4" fill={p.color||"#8ab5a0"}/>
+      <circle r={room.tag?.active&&room.tag.hunterId===p.id?3.2:2.4} fill={room.tag?.active&&room.tag.hunterId===p.id?'#ff965f':p.color||"#8ab5a0"}/>
      </g>)}
     </g>;
    })}

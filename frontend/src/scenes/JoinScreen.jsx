@@ -39,8 +39,8 @@ export default function JoinScreen({ onJoined, onGoToCreate }) {
       <div className={`${styles.blob} ${styles.blobC}`} />
 
       <form className={styles.panel} onSubmit={handleJoin}>
-        <h1 className={styles.title}>Office Grid</h1>
-        <p className={styles.subtitle}>Enter your details and a room code to join a match.</p>
+        <h1 className={styles.title}>JOIN THE ADVENTURE</h1>
+        <p className={styles.subtitle}>Ismingiz va do‘stingiz yuborgan xona kodini kiriting.</p>
 
         <div className={styles.field}>
           <label className={styles.label} htmlFor="nickname">

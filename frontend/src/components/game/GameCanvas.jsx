@@ -5,6 +5,8 @@ import { useRoomSocket } from "../../hooks/useRoomSocket.js";
 import "../../styles/aiRoom.css";
 import RoomRadar from "./RoomRadar.jsx";
 import RobotProfile from "./RobotProfile.jsx";
+import WeaponHUD from './WeaponHUD.jsx';
+import TagHUD from './TagHUD.jsx';
 
 /**
  * Mounts the canvas + HUD + modal DOM that the vanilla game engine expects,
@@ -42,6 +44,7 @@ export default function GameCanvas() {
     const game = new Game(canvas, {
       getMySocketId: () => mySocketIdRef.current,
       getPlayers: () => roomRef.current?.players || [],
+      getCombat: () => roomRef.current || {},
       getSolvedTasks: () => roomRef.current?.solvedTasks || {},
       onLocalMove: patch => {sendPlayerState(patch);patchPlayer(mySocketIdRef.current,patch);},
       onSeatRequest: requestSeat,
@@ -71,6 +74,8 @@ export default function GameCanvas() {
   return (
     <div id="app">
       <canvas id="game-canvas" ref={canvasRef} />
+      <WeaponHUD getPlayer={()=>gameRef.current?.player} getAim={event=>gameRef.current?.getWeaponAim(event)}/>
+      <TagHUD/>
 
       {/* HUD layer: interaction prompts, team progress, flashlight hint */}
       <div id="hud">

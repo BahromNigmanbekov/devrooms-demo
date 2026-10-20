@@ -28,3 +28,4 @@ httpServer.listen(PORT, () => {
 
 import { roomManager } from "./rooms/roomManager.js";
 setInterval(()=>{for(const update of roomManager.tickDoors())io.to(update.roomId).emit("room:doors",update.doors);},150).unref();
+setInterval(()=>{for(const update of roomManager.tickTag())io.to(update.roomId).emit('room:state',update.room);},50).unref();

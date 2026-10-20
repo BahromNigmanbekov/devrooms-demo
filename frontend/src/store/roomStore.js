@@ -2,6 +2,11 @@ import { create } from "zustand";
 
 export const useRoomStore = create((set) => ({
   room: null, // { id, name, hostId, maxPlayers, started, players[] }
+  patchCombat: (result) => set(s=>s.room?{room:{...s.room,
+    trainingTargets:result.targets,
+    combatEffects:[...(s.room.combatEffects||[]).filter(e=>Date.now()-e.at<1500),{...result.effect,at:Date.now()}].slice(-32),
+    players:s.room.players.map(p=>({...p,...result.players.find(next=>next.id===p.id)})),
+  }}:s),
   mySocketId: null,
   status: "idle", // idle | connecting | in-room | error
   error: null,

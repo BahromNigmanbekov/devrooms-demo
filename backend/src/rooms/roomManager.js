@@ -1,3 +1,6 @@
+import {sanitizeEquipment} from "../../../shared/equipment.mjs";
+import {createTrainingTargets,useWeapon} from './weaponSystem.js';
+import {startTag,stopTag,tickTag} from './tagSystem.js';
 import { validateArcadeAnswer } from "../../../shared/arcadeActivities.mjs";
 import { runTask } from "../../../frontend/src/engine/systems/CodeChecker.js";
 import { areaDoors, doorAllowed, doorDistance, doorObstacle } from "../../../frontend/src/engine/systems/DoorSystem.js";
@@ -28,7 +31,7 @@ const taskTotal = area => Object.keys(TASKS_BY_AREA[area]).length;
 const rooms = new Map(); // roomId -> Room
 const socketToRoom = new Map(); // socketId -> roomId
 
-function createRoom({ hostSocketId, hostNickname, hostColor, maxPlayers, roomName }) {
+function createRoom({ hostSocketId, hostNickname, hostColor, maxPlayers, roomName, equipment }) {
   let roomId = generateRoomId();
   while (rooms.has(roomId)) roomId = generateRoomId();
 
@@ -39,26 +42,26 @@ function createRoom({ hostSocketId, hostNickname, hostColor, maxPlayers, roomNam
     maxPlayers: clampMaxPlayers(maxPlayers),
     started: false,
     createdAt: Date.now(),
-    players: new Map(), doors:{}, attempts:new Map(),
+    players: new Map(), doors:{}, attempts:new Map(), trainingTargets:createTrainingTargets(),
     // area -> Set of unique task ids the team has solved in that area.
     areaProgress: Object.fromEntries(AREA_SEQUENCE.map((a) => [a, new Set()])),
     unlockedAreas: new Set([AREA_SEQUENCE[0]]),
   };
 
-  room.players.set(hostSocketId, makePlayer(hostSocketId, hostNickname, hostColor, true));
+  room.players.set(hostSocketId, makePlayer(hostSocketId, hostNickname, hostColor, true, equipment));
   rooms.set(roomId, room);
   socketToRoom.set(hostSocketId, roomId);
 
   return room;
 }
 
-function joinRoom(roomId, { socketId, nickname, color }) {
+function joinRoom(roomId, { socketId, nickname, color, equipment }) {
   const room = rooms.get(roomId);
   if (!room) return { error: "ROOM_NOT_FOUND" };
   if (room.started) return { error: "ROOM_ALREADY_STARTED" };
   if (room.players.size >= room.maxPlayers) return { error: "ROOM_FULL" };
 
-  room.players.set(socketId, makePlayer(socketId, nickname, color, false));
+  room.players.set(socketId, makePlayer(socketId, nickname, color, false, equipment));
   socketToRoom.set(socketId, roomId);
   return { room };
 }
@@ -118,12 +121,14 @@ function updatePlayerState(socketId, patch) {
 
   if (!patch || typeof patch !== "object") return null;
   const safe = {};
+  if (patch.equipment && typeof patch.equipment === "object") safe.equipment=sanitizeEquipment(patch.equipment);
   for (const key of ["x", "y"]) if (Number.isFinite(patch[key])) safe[key] = patch[key];
   if (patch.facing && Number.isFinite(patch.facing.x) && Number.isFinite(patch.facing.y)) safe.facing = { x: patch.facing.x, y: patch.facing.y };
   if (typeof patch.moving === "boolean") safe.moving = patch.moving;
+  if (typeof patch.aiming === 'boolean')safe.aiming=patch.aiming;
   if (typeof patch.color === "string" && /^#[0-9a-f]{6}$/i.test(patch.color)) safe.color = patch.color;
   if (typeof patch.nickname === "string") safe.nickname = patch.nickname.slice(0, 16);
-  if (room.unlockedAreas.has(patch.area)) safe.area = patch.area;
+  if (room.unlockedAreas.has(patch.area)||(room.tag?.active&&AREAS[patch.area])) safe.area = patch.area;
   if (typeof patch.flashlightOn === "boolean") safe.flashlightOn = patch.flashlightOn;
   if (Number.isFinite(patch.flashlightEnergy)) safe.flashlightEnergy = Math.max(0, Math.min(100, patch.flashlightEnergy));
   if (player.seated || player.eliminated) {
@@ -200,7 +205,9 @@ function serializeRoom(room) {
     started: room.started,
     players: Array.from(room.players.values()),
     doors:room.doors,
-    unlockedAreas: Array.from(room.unlockedAreas),
+    trainingTargets:room.trainingTargets,
+    tag:room.tag||{active:false,hunterId:null},
+    unlockedAreas: room.tag?.active?Object.keys(AREAS):Array.from(room.unlockedAreas),
     solvedTasks: Object.fromEntries(Object.entries(room.areaProgress).map(([area, set]) => [area, [...set]])),
     taskProgress: Object.fromEntries(
       Object.entries(room.areaProgress).map(([area, set]) => [
@@ -214,10 +221,12 @@ function serializeRoom(room) {
 // Keep in sync with frontend/src/engine/lobby/LobbyEngine.js LOBBY_WORLD.
 const LOBBY_WORLD = { width: 900, height: 560, padding: 100 };
 
-function makePlayer(id, nickname, color, isHost) {
+
+function makePlayer(id, nickname, color, isHost, equipment) {
   return {
     id,
     nickname: (nickname || "Player").slice(0, 16),
+    equipment: sanitizeEquipment(equipment),
     color: color || "#4f8cff",
     isHost,
     ...randomSpawnPoint(),
@@ -242,6 +251,28 @@ function clampMaxPlayers(n) {
 }
 
 export const roomManager = {
+  setTag: (socketId,active) => {
+    const room=getRoomForSocket(socketId);
+    if(!room)return {ok:false,error:'NOT_IN_ROOM'};
+    const result=active?startTag(room,socketId):stopTag(room,socketId);
+    if(result.ok&&active)for(const [key,area] of Object.entries(AREAS))for(const d of areaDoors(area,key))room.doors[d.id]={open:true,holdUntil:Date.now()+3600000};
+    if(result.ok&&!active)finishTag(room);
+    return result;
+  },
+  tickTag: (now=Date.now()) => {
+    const updates=[];
+    for(const room of rooms.values())if(tickTag(room,area=>AREAS[area]?.buildWalls()||[],now)){
+      if(!room.tag.active)finishTag(room);
+      updates.push({roomId:room.id,room:serializeRoom(room)});
+    }
+    return updates;
+  },
+  useWeapon: (socketId) => {
+    const room=getRoomForSocket(socketId),player=room?.players.get(socketId),area=AREAS[player?.area];
+    if(!area)return {ok:false,error:'UNAVAILABLE'};
+    const walls=[...area.buildWalls(),...areaDoors(area,player.area).filter(d=>!room.doors[d.id]?.open).map(doorObstacle)];
+    return useWeapon(room,player,walls);
+  },
   setSeat, submitAttempt, requestDoor, tickDoors,
   createRoom,
   joinRoom,
@@ -289,7 +320,9 @@ function submitAttempt(socketId, data={}) {
  if(cache.has(data.attemptId)) return {...cache.get(data.attemptId),player:{...player},progress:null};
  const allPass=data.area==="ai"?validateAIAnswer(task,data.answer):task.type==='arcade'?validateArcadeAnswer(task,data.answer):task.type==="css"?runTask(task,String(data.answer||"")).allPass:data.passed===true;
  const before=player.energy;
- player.energy=Math.max(0,Math.min(100,before+(allPass?10:-25)));
+ const protectedAttempt=!allPass&&(player.shieldUntil||0)>Date.now();
+ if(protectedAttempt)player.shieldUntil=0;
+ player.energy=Math.max(0,Math.min(100,before+(allPass?10:protectedAttempt?0:-25)));
  player.eliminated=player.energy===0;
  if(player.eliminated) player.moving=false;
  const progress=allPass?completeTask(room.id,data.area,data.taskId,data.answer):null;
@@ -302,13 +335,14 @@ function requestDoor(socketId,{area,id}={}) {
  const room=getRoomForSocket(socketId),player=room?.players.get(socketId);
  if(!room?.started||!player||player.eliminated||player.area!==area) return {ok:false};
  const door=areaDoors(AREAS[area],area).find(d=>d.id===id);
- if(!door||doorDistance(player,door)>115||!doorAllowed(door,[...room.areaProgress[area]],[...room.unlockedAreas])) return {ok:false,error:"DOOR_LOCKED"};
+ if(!door||doorDistance(player,door)>115||(!room.tag?.active&&!doorAllowed(door,[...room.areaProgress[area]],[...room.unlockedAreas]))) return {ok:false,error:"DOOR_LOCKED"};
  room.doors[id]={open:true,holdUntil:Date.now()+1800};
  return {ok:true,roomId:room.id,doors:room.doors};
 }
 function tickDoors(now=Date.now()) {
  const updates=[];
  for(const room of rooms.values()) {
+ if(room.tag?.active)continue;
  let changed=false;
  for(const [id,state] of Object.entries(room.doors)) {
  if(!state.open||now<state.holdUntil) continue;
@@ -323,4 +357,12 @@ function tickDoors(now=Date.now()) {
  if(changed) updates.push({roomId:room.id,doors:room.doors});
  }
  return updates;
+}
+
+function finishTag(room){
+ for(const state of Object.values(room.doors))state.holdUntil=0;
+ let index=0;
+ for(const p of room.players.values())if(p.area&&!room.unlockedAreas.has(p.area)){
+  Object.assign(p,{area:'ai',x:720+(index++%4)*70,y:825,moving:false,seated:false,seatId:null,relocationId:(p.relocationId||0)+1});
+ }
 }

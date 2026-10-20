@@ -1,8 +1,9 @@
+import { Renderer } from "../render/Renderer.js";
 import { InputManager } from "../core/InputManager.js";
 
 export const LOBBY_WORLD = { width: 900, height: 560, padding: 60 };
 const MOVE_SPEED = 260; // px/sec
-const BROADCAST_INTERVAL_MS = 60; // ~16Hz — enough to feel live, cheap on sockets
+const BROADCAST_INTERVAL_MS = 60; // ~16Hz вЂ” enough to feel live, cheap on sockets
 const PLAYER_RADIUS = 20;
 
 /**
@@ -65,7 +66,7 @@ export class LobbyEngine {
     const mySocketId = this.getMySocketId();
     const me = players.find((p) => p.id === mySocketId);
 
-    // Seed local position from the server's initial spawn point once —
+    // Seed local position from the server's initial spawn point once вЂ”
     // after that, this client is authoritative over its own movement and
     // just tells the server where it is (classic client-predicted movement).
     if (!this.local.initialized && me) {
@@ -119,7 +120,7 @@ export class LobbyEngine {
 
     for (const p of players) {
       if (p.id === mySocketId) continue;
-      this._drawPlayer(offsetX + p.x, offsetY + p.y, p.color, p.nickname, false, p.facing);
+      this._drawPlayer(offsetX + p.x, offsetY + p.y, p.color, p.nickname, false, p.facing, p.equipment);
     }
     if (this.local.initialized) {
       const me = players.find((p) => p.id === mySocketId);
@@ -129,7 +130,8 @@ export class LobbyEngine {
         me?.color || "#5b8cff",
         me?.nickname || "You",
         true,
-        this.local.facing
+        this.local.facing,
+        me?.equipment
       );
     }
   }
@@ -174,47 +176,8 @@ export class LobbyEngine {
     ctx.restore();
   }
 
-  _drawPlayer(x, y, color, nickname, isMe, facing) {
-    const { ctx } = this;
-
-    // Soft shadow
-    ctx.beginPath();
-    ctx.ellipse(x, y + PLAYER_RADIUS * 0.8, PLAYER_RADIUS * 0.9, PLAYER_RADIUS * 0.35, 0, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0,0,0,0.35)";
-    ctx.fill();
-
-    // Body
-    ctx.beginPath();
-    ctx.arc(x, y, PLAYER_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = color || "#5b8cff";
-    ctx.fill();
-    ctx.lineWidth = isMe ? 3 : 2;
-    ctx.strokeStyle = isMe ? "#ffffff" : "rgba(255,255,255,0.35)";
-    ctx.stroke();
-
-    // Facing dot (simple "eye")
-    if (facing) {
-      const ex = x + facing.x * PLAYER_RADIUS * 0.55;
-      const ey = y + facing.y * PLAYER_RADIUS * 0.55;
-      ctx.beginPath();
-      ctx.arc(ex, ey, 4, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(10,14,23,0.85)";
-      ctx.fill();
-    }
-
-    // Nickname pill
-    const label = nickname || "Player";
-    ctx.font = "600 12px 'Segoe UI', Inter, sans-serif";
-    const textWidth = ctx.measureText(label).width;
-    const pillW = textWidth + 16;
-    const pillY = y - PLAYER_RADIUS - 26;
-    ctx.fillStyle = "rgba(10,14,23,0.75)";
-    roundRect(ctx, x - pillW / 2, pillY, pillW, 20, 10);
-    ctx.fill();
-    ctx.fillStyle = "#eef2ff";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(label, x, pillY + 10);
+  _drawPlayer(x, y, color, nickname, isMe, facing, equipment) {
+    new Renderer(this.ctx).drawPlayer({x,y,color,nickname,equipment,isLocal:isMe,facing:facing||{x:0,y:1},radius:20,moving:false});
   }
 }
 
